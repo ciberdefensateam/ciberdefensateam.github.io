@@ -73,10 +73,6 @@
             animation: windowClose 0.32s ease-in forwards;
         }
 
-        .terminal.opening {
-            animation: windowOpen 0.32s ease-out forwards;
-        }
-
         .terminal.minimizing,
         .terminal.restoring {
             transform-origin: center bottom;
@@ -93,11 +89,6 @@
         @keyframes windowClose {
             from { opacity: 1; transform: scale(1); }
             to { opacity: 0; transform: scale(0.04); }
-        }
-
-        @keyframes windowOpen {
-            from { opacity: 0; transform: scale(0.04); }
-            to { opacity: 1; transform: scale(1); }
         }
 
         @keyframes windowMinimize {
@@ -170,6 +161,7 @@
         .output {
             color: var(--dim);
             margin: 0.1rem 0 0.7rem 0;
+            white-space: pre-wrap;
         }
 
         .output .highlight {
@@ -221,27 +213,11 @@
             height: var(--taskbar-height);
             background: #10151c;
             border-top: 1px solid var(--border);
-            display: flex;
+            display: none;
             align-items: center;
             gap: 0.6rem;
             padding: 0 0.8rem;
             z-index: 1000;
-        }
-
-        .start-btn {
-            font-family: inherit;
-            font-size: 0.85rem;
-            color: var(--accent);
-            background: #131a24;
-            border: 1px solid var(--border);
-            border-radius: 6px;
-            padding: 0.45rem 0.9rem;
-            flex: 0 0 auto;
-        }
-
-        .start-btn:hover {
-            background: #182130;
-            border-color: var(--accent);
         }
 
         .dock {
@@ -288,7 +264,6 @@
 </head>
 <body>
     <div class="taskbar">
-        <button class="start-btn" id="start-btn">start</button>
         <div class="dock" id="dock"></div>
     </div>
 
@@ -301,11 +276,38 @@
 
         const PROMPT_HTML = '<span class="prompt">guest@<span class="path">ciberdefensa</span>:~$</span> ';
 
-        const entries = [
-            {
-                cmd: 'whoami',
-                output: ['ciberdefensa_team']
-            },
+        const HELP_TEXT = 'Comandos: cat about.md, cat instagram.md, cat banner.txt, start, clear, help';
+
+        const BANNER_WIDTH = 50;
+
+        function centerText(text, width) {
+            const pad = Math.max(width - text.length, 0);
+            const left = Math.floor(pad / 2);
+            return ' '.repeat(left) + text + ' '.repeat(pad - left);
+        }
+
+        function bannerBorder(width) {
+            return '+' + '-'.repeat(width + 2) + '+';
+        }
+
+        function bannerLine(text, width) {
+            return '| ' + centerText(text, width) + ' |';
+        }
+
+        const BANNER_LINES = [
+            bannerBorder(BANNER_WIDTH),
+            bannerLine('C I B E R D E F E N S A   T E A M', BANNER_WIDTH),
+            bannerBorder(BANNER_WIDTH),
+            '',
+            'Grupo de estudiantes de la FADENA 🛡️',
+            'Noticias, memes e info de ciberseguridad, todo en un solo lugar.',
+            '',
+            '<a href="https://instagram.com/ciberdefensa.team" target="_blank" rel="noopener">instagram.com/ciberdefensa.team</a>',
+            '',
+            HELP_TEXT
+        ];
+
+        const commands = [
             {
                 cmd: 'cat about.md',
                 output: [
@@ -314,17 +316,27 @@
                 ]
             },
             {
-                cmd: 'cat contenido/instagram.md',
+                cmd: 'cat instagram.md',
                 output: ['<a href="https://instagram.com/ciberdefensa.team" target="_blank" rel="noopener">instagram.com/ciberdefensa.team</a>']
             },
             {
+                cmd: 'cat banner.txt',
+                output: BANNER_LINES
+            },
+            {
                 cmd: 'help',
-                output: ['Comandos disponibles: whoami, cat about.md, cat contenido/instagram.md, clear, help']
+                output: [HELP_TEXT]
             }
         ];
 
+        const introSteps = [commands.find((c) => c.cmd === 'cat banner.txt')];
+
         const dockEl = document.getElementById('dock');
-        const startBtn = document.getElementById('start-btn');
+        const taskbarEl = document.querySelector('.taskbar');
+
+        function updateTaskbarVisibility() {
+            taskbarEl.style.display = dockEl.children.length > 0 ? 'flex' : 'none';
+        }
 
         const hiddenInput = document.createElement('input');
         hiddenInput.type = 'text';
@@ -337,6 +349,7 @@
         let zIndexCounter = 10;
         let windowCount = 0;
         let activeWindow = null;
+        const windows = [];
 
         hiddenInput.addEventListener('input', () => {
             if (activeWindow) activeWindow.handleInput(hiddenInput.value);
@@ -395,6 +408,7 @@
             const headerEl = el.querySelector('.terminal-header');
             const redDot = el.querySelector('.dot.red');
             const yellowDot = el.querySelector('.dot.yellow');
+            const greenDot = el.querySelector('.dot.green');
             const resizeHandle = el.querySelector('.resize-handle');
 
             const offset = ((windowCount - 1) % 6) * 26;
@@ -415,6 +429,8 @@
             let currentTypedSpan = null;
             let activeCaret = null;
             let dockItem = null;
+            let isMaximized = false;
+            let restoreBounds = null;
 
             function bringToFront() {
                 el.style.zIndex = ++zIndexCounter;
@@ -444,12 +460,12 @@
             }
 
             function renderEntry(index) {
-                if (index >= entries.length) {
+                if (index >= introSteps.length) {
                     renderFinalPrompt(true);
                     return;
                 }
 
-                const entry = entries[index];
+                const entry = introSteps[index];
                 const line = document.createElement('div');
                 line.className = 'line';
                 line.innerHTML = PROMPT_HTML;
@@ -499,8 +515,19 @@
                     return;
                 }
 
+                if (value.toLowerCase() === 'start') {
+                    const out = document.createElement('div');
+                    out.className = 'output';
+                    out.textContent = 'Iniciando nueva terminal...';
+                    bodyEl.appendChild(out);
+                    renderFinalPrompt(false);
+                    bodyEl.scrollTop = bodyEl.scrollHeight;
+                    createTerminalWindow();
+                    return;
+                }
+
                 if (value !== '') {
-                    const match = entries.find((en) => en.cmd.toLowerCase() === value.toLowerCase());
+                    const match = commands.find((en) => en.cmd.toLowerCase() === value.toLowerCase());
                     const out = document.createElement('div');
                     out.className = 'output';
                     if (match) {
@@ -524,8 +551,45 @@
                 }
             };
 
+            windows.push(controller);
+
+            function maximizeWindow() {
+                restoreBounds = {
+                    left: el.style.left,
+                    top: el.style.top,
+                    width: el.style.width,
+                    height: el.style.height
+                };
+                el.style.left = '0px';
+                el.style.top = '0px';
+                el.style.width = window.innerWidth + 'px';
+                el.style.height = (window.innerHeight - TASKBAR_HEIGHT) + 'px';
+                isMaximized = true;
+                bringToFront();
+            }
+
+            function unmaximizeWindow() {
+                if (restoreBounds) {
+                    el.style.left = restoreBounds.left;
+                    el.style.top = restoreBounds.top;
+                    el.style.width = restoreBounds.width;
+                    el.style.height = restoreBounds.height;
+                }
+                isMaximized = false;
+                bringToFront();
+            }
+
+            greenDot.addEventListener('click', () => {
+                if (isAnimating) return;
+                if (isMaximized) {
+                    unmaximizeWindow();
+                } else {
+                    maximizeWindow();
+                }
+            });
+
             headerEl.addEventListener('pointerdown', (e) => {
-                if (e.target.closest('.dot') || isAnimating) return;
+                if (e.target.closest('.dot') || isAnimating || isMaximized) return;
                 bringToFront();
 
                 const rect = el.getBoundingClientRect();
@@ -559,7 +623,7 @@
 
             resizeHandle.addEventListener('pointerdown', (e) => {
                 e.stopPropagation();
-                if (isAnimating) return;
+                if (isAnimating || isMaximized) return;
                 bringToFront();
 
                 const rect = el.getBoundingClientRect();
@@ -608,12 +672,14 @@
                     instanceLabel.replace('guest@ciberdefensa: ~', 'ciberdefensa');
                 dockItem.addEventListener('click', restoreWindow);
                 dockEl.appendChild(dockItem);
+                updateTaskbarVisibility();
             }
 
             function restoreWindow() {
                 if (dockItem) {
                     dockItem.remove();
                     dockItem = null;
+                    updateTaskbarVisibility();
                 }
                 el.style.display = '';
                 isAnimating = true;
@@ -623,19 +689,16 @@
 
             el.addEventListener('animationend', (e) => {
                 if (e.animationName === 'windowClose') {
-                    el.classList.remove('closing');
-                    el.style.visibility = 'hidden';
-                    bodyEl.innerHTML = '';
                     if (activeWindow === controller) activeWindow = null;
 
-                    setTimeout(() => {
-                        el.style.visibility = '';
-                        el.classList.add('opening');
-                        renderEntry(0);
-                    }, 600);
-                } else if (e.animationName === 'windowOpen') {
-                    el.classList.remove('opening');
-                    isAnimating = false;
+                    const idx = windows.indexOf(controller);
+                    if (idx !== -1) windows.splice(idx, 1);
+
+                    el.remove();
+
+                    if (windows.length === 0) {
+                        createTerminalWindow();
+                    }
                 } else if (e.animationName === 'windowMinimize') {
                     el.classList.remove('minimizing');
                     el.style.display = 'none';
@@ -650,8 +713,6 @@
 
             renderEntry(0);
         }
-
-        startBtn.addEventListener('click', () => createTerminalWindow());
 
         if (window.matchMedia('(pointer: fine)').matches) {
             document.body.classList.add('custom-cursor');
