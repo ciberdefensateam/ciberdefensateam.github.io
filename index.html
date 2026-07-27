@@ -17,50 +17,39 @@
             --dot-red: #c9575a;
             --dot-yellow: #c9a227;
             --dot-green: #3ea55c;
+            --taskbar-height: 52px;
         }
 
         * {
             box-sizing: border-box;
         }
 
+        html, body {
+            height: 100%;
+            overflow: hidden;
+        }
+
         body {
             margin: 0;
-            min-height: 100vh;
-            background:
-                radial-gradient(circle at 50% 0%, #131a24 0%, var(--bg) 60%);
+            background: radial-gradient(circle at 50% 0%, #131a24 0%, var(--bg) 60%);
             color: var(--text);
             font-family: "Cascadia Code", "Fira Code", ui-monospace, "SFMono-Regular", Consolas, "Courier New", monospace;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            padding: 1.5rem;
         }
 
-        body.custom-cursor,
-        body.custom-cursor * {
-            cursor: none;
+        body.custom-cursor {
+            cursor: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='22' height='22' viewBox='0 0 22 22'><path d='M3 1 L3 18 L7.5 14.2 L10.5 20.5 L13.3 19.1 L10.3 13 L17 13 Z' fill='black' stroke='%23e2e8f0' stroke-width='1.2' stroke-linejoin='round'/></svg>") 3 1, auto;
         }
 
-        .cursor-block {
+        .hidden-input {
             position: fixed;
-            top: 0;
-            left: 0;
-            width: 9px;
-            height: 18px;
-            background: var(--accent);
-            opacity: 0.85;
-            mix-blend-mode: screen;
-            border-radius: 1px;
-            pointer-events: none;
-            z-index: 9999;
-            transform: translate(-2px, -2px);
-            animation: blink 1s steps(1) infinite;
-            transition: transform 0.05s ease-out;
-        }
-
-        .cursor-block.clicking {
-            transform: translate(-2px, -2px) scale(0.8);
+            top: -100px;
+            left: -100px;
+            width: 1px;
+            height: 1px;
+            opacity: 0;
+            border: 0;
+            padding: 0;
+            background: transparent;
         }
 
         @keyframes blink {
@@ -69,13 +58,56 @@
         }
 
         .terminal {
-            width: 100%;
-            max-width: 700px;
+            position: fixed;
+            display: flex;
+            flex-direction: column;
             background: var(--terminal-bg);
             border: 1px solid var(--border);
             border-radius: 10px;
             box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
             overflow: hidden;
+            transform-origin: 30px 24px;
+        }
+
+        .terminal.closing {
+            animation: windowClose 0.32s ease-in forwards;
+        }
+
+        .terminal.opening {
+            animation: windowOpen 0.32s ease-out forwards;
+        }
+
+        .terminal.minimizing,
+        .terminal.restoring {
+            transform-origin: center bottom;
+        }
+
+        .terminal.minimizing {
+            animation: windowMinimize 0.28s ease-in forwards;
+        }
+
+        .terminal.restoring {
+            animation: windowRestore 0.28s ease-out forwards;
+        }
+
+        @keyframes windowClose {
+            from { opacity: 1; transform: scale(1); }
+            to { opacity: 0; transform: scale(0.04); }
+        }
+
+        @keyframes windowOpen {
+            from { opacity: 0; transform: scale(0.04); }
+            to { opacity: 1; transform: scale(1); }
+        }
+
+        @keyframes windowMinimize {
+            from { opacity: 1; transform: scale(1) translateY(0); }
+            to { opacity: 0; transform: scale(0.15) translateY(55vh); }
+        }
+
+        @keyframes windowRestore {
+            from { opacity: 0; transform: scale(0.15) translateY(55vh); }
+            to { opacity: 1; transform: scale(1) translateY(0); }
         }
 
         .terminal-header {
@@ -85,6 +117,10 @@
             padding: 0.7rem 0.9rem;
             background: #10151c;
             border-bottom: 1px solid var(--border);
+            user-select: none;
+            touch-action: none;
+            cursor: grab;
+            flex: 0 0 auto;
         }
 
         .dot {
@@ -106,10 +142,12 @@
         }
 
         .terminal-body {
+            flex: 1 1 auto;
+            min-height: 0;
+            overflow-y: auto;
             padding: 1.4rem 1.4rem 1.6rem;
             font-size: 0.92rem;
             line-height: 1.65;
-            min-height: 340px;
         }
 
         .line {
@@ -138,6 +176,18 @@
             color: var(--warn);
         }
 
+        .output a {
+            color: var(--accent-2);
+            text-decoration: underline;
+            text-decoration-color: rgba(122, 162, 201, 0.4);
+            text-underline-offset: 2px;
+        }
+
+        .output a:hover {
+            color: var(--accent);
+            text-decoration-color: var(--accent);
+        }
+
         .caret {
             display: inline-block;
             width: 8px;
@@ -146,6 +196,86 @@
             vertical-align: text-bottom;
             margin-left: 2px;
             animation: blink 1s steps(1) infinite;
+        }
+
+        .resize-handle {
+            position: absolute;
+            right: 2px;
+            bottom: 2px;
+            width: 14px;
+            height: 14px;
+            cursor: nwse-resize;
+            background:
+                linear-gradient(135deg,
+                    transparent 0 40%, var(--dim) 40% 46%,
+                    transparent 46% 60%, var(--dim) 60% 66%,
+                    transparent 66% 80%, var(--dim) 80% 86%,
+                    transparent 86%);
+        }
+
+        .taskbar {
+            position: fixed;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            height: var(--taskbar-height);
+            background: #10151c;
+            border-top: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            gap: 0.6rem;
+            padding: 0 0.8rem;
+            z-index: 1000;
+        }
+
+        .start-btn {
+            font-family: inherit;
+            font-size: 0.85rem;
+            color: var(--accent);
+            background: #131a24;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 0.45rem 0.9rem;
+            flex: 0 0 auto;
+        }
+
+        .start-btn:hover {
+            background: #182130;
+            border-color: var(--accent);
+        }
+
+        .dock {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            overflow-x: auto;
+            height: 100%;
+        }
+
+        .dock-item {
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+            font-family: inherit;
+            font-size: 0.78rem;
+            color: var(--text);
+            background: #131a24;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 0.35rem 0.7rem;
+            white-space: nowrap;
+            flex: 0 0 auto;
+        }
+
+        .dock-item:hover {
+            border-color: var(--accent-2);
+        }
+
+        .dock-dot {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            background: var(--accent);
         }
 
         @media (max-width: 640px) {
@@ -157,17 +287,18 @@
     </style>
 </head>
 <body>
-    <div class="terminal">
-        <div class="terminal-header">
-            <span class="dot red"></span>
-            <span class="dot yellow"></span>
-            <span class="dot green"></span>
-            <span class="terminal-title">guest@ciberdefensa: ~</span>
-        </div>
-        <div class="terminal-body" id="terminal-body"></div>
+    <div class="taskbar">
+        <button class="start-btn" id="start-btn">start</button>
+        <div class="dock" id="dock"></div>
     </div>
 
     <script>
+        const TASKBAR_HEIGHT = 52;
+        const MIN_W = 320;
+        const MIN_H = 240;
+        const DEFAULT_W = 700;
+        const DEFAULT_H = 440;
+
         const PROMPT_HTML = '<span class="prompt">guest@<span class="path">ciberdefensa</span>:~$</span> ';
 
         const entries = [
@@ -176,91 +307,357 @@
                 output: ['ciberdefensa_team']
             },
             {
-                cmd: 'cat about.txt',
+                cmd: 'cat about.md',
                 output: [
                     'Grupo de estudiantes de la FADENA 🛡️',
                     'Noticias, memes e info de ciberseguridad, todo en un solo lugar.'
                 ]
             },
             {
-                cmd: 'ls contenido/',
-                output: ['noticias_y_novedades/', 'memes/', 'info/']
+                cmd: 'cat contenido/instagram.md',
+                output: ['<a href="https://instagram.com/ciberdefensa.team" target="_blank" rel="noopener">instagram.com/ciberdefensa.team</a>']
             },
             {
-                cmd: 'cat contenido/noticias_y_novedades/README.md',
-                output: ['Lo último del mundo cyber, resumido por el equipo.']
-            },
-            {
-                cmd: 'cat contenido/memes/README.md',
-                output: ['Memes para sobrevivir a la facultad (y a los parciales de redes).']
-            },
-            {
-                cmd: 'cat contenido/info/README.md',
-                output: ['Recursos, guías y novedades del grupo, todo el tiempo.']
+                cmd: 'help',
+                output: ['Comandos disponibles: whoami, cat about.md, cat contenido/instagram.md, clear, help']
             }
         ];
 
-        const body = document.getElementById('terminal-body');
+        const dockEl = document.getElementById('dock');
+        const startBtn = document.getElementById('start-btn');
 
-        function typeLine(text, target, done) {
-            let i = 0;
-            (function step() {
-                if (i <= text.length) {
-                    target.textContent = text.slice(0, i);
-                    i++;
-                    setTimeout(step, 22 + Math.random() * 28);
-                } else {
-                    done();
-                }
-            })();
+        const hiddenInput = document.createElement('input');
+        hiddenInput.type = 'text';
+        hiddenInput.className = 'hidden-input';
+        hiddenInput.autocomplete = 'off';
+        hiddenInput.spellcheck = false;
+        hiddenInput.setAttribute('aria-label', 'terminal input');
+        document.body.appendChild(hiddenInput);
+
+        let zIndexCounter = 10;
+        let windowCount = 0;
+        let activeWindow = null;
+
+        hiddenInput.addEventListener('input', () => {
+            if (activeWindow) activeWindow.handleInput(hiddenInput.value);
+        });
+
+        hiddenInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && activeWindow) {
+                e.preventDefault();
+                activeWindow.handleEnter(hiddenInput.value);
+                hiddenInput.value = '';
+            }
+        });
+
+        function clamp(v, min, max) {
+            return Math.min(Math.max(v, min), max);
         }
 
-        function renderEntry(index) {
-            if (index >= entries.length) {
-                renderFinalPrompt();
-                return;
+        function clampWindowToViewport(el) {
+            const maxW = window.innerWidth;
+            const maxH = window.innerHeight - TASKBAR_HEIGHT;
+            const width = clamp(el.offsetWidth, Math.min(MIN_W, maxW), maxW);
+            const height = clamp(el.offsetHeight, Math.min(MIN_H, maxH), maxH);
+            el.style.width = width + 'px';
+            el.style.height = height + 'px';
+            const maxLeft = Math.max(maxW - width, 0);
+            const maxTop = Math.max(maxH - height, 0);
+            el.style.left = clamp(parseFloat(el.style.left) || 0, 0, maxLeft) + 'px';
+            el.style.top = clamp(parseFloat(el.style.top) || 0, 0, maxTop) + 'px';
+        }
+
+        window.addEventListener('resize', () => {
+            document.querySelectorAll('.terminal').forEach(clampWindowToViewport);
+        });
+
+        function createTerminalWindow() {
+            windowCount++;
+            const instanceLabel = windowCount > 1
+                ? 'guest@ciberdefensa: ~ (' + windowCount + ')'
+                : 'guest@ciberdefensa: ~';
+
+            const el = document.createElement('div');
+            el.className = 'terminal';
+            el.innerHTML =
+                '<div class="terminal-header">' +
+                    '<span class="dot red"></span>' +
+                    '<span class="dot yellow"></span>' +
+                    '<span class="dot green"></span>' +
+                    '<span class="terminal-title"></span>' +
+                '</div>' +
+                '<div class="terminal-body"></div>' +
+                '<div class="resize-handle"></div>';
+            el.querySelector('.terminal-title').textContent = instanceLabel;
+            document.body.appendChild(el);
+
+            const bodyEl = el.querySelector('.terminal-body');
+            const headerEl = el.querySelector('.terminal-header');
+            const redDot = el.querySelector('.dot.red');
+            const yellowDot = el.querySelector('.dot.yellow');
+            const resizeHandle = el.querySelector('.resize-handle');
+
+            const offset = ((windowCount - 1) % 6) * 26;
+            const width = Math.min(DEFAULT_W, window.innerWidth - 32);
+            const height = Math.min(DEFAULT_H, window.innerHeight - TASKBAR_HEIGHT - 32);
+            const maxLeft = Math.max(window.innerWidth - width, 0);
+            const maxTop = Math.max(window.innerHeight - TASKBAR_HEIGHT - height, 0);
+            const baseLeft = (window.innerWidth - width) / 2;
+            const baseTop = (window.innerHeight - TASKBAR_HEIGHT - height) / 2;
+
+            el.style.width = width + 'px';
+            el.style.height = height + 'px';
+            el.style.left = clamp(baseLeft + offset, 0, maxLeft) + 'px';
+            el.style.top = clamp(baseTop + offset, 0, maxTop) + 'px';
+            el.style.zIndex = ++zIndexCounter;
+
+            let isAnimating = false;
+            let currentTypedSpan = null;
+            let activeCaret = null;
+            let dockItem = null;
+
+            function bringToFront() {
+                el.style.zIndex = ++zIndexCounter;
             }
 
-            const entry = entries[index];
-            const line = document.createElement('div');
-            line.className = 'line';
-            line.innerHTML = PROMPT_HTML;
-            const cmdSpan = document.createElement('span');
-            cmdSpan.className = 'cmd';
-            line.appendChild(cmdSpan);
-            body.appendChild(line);
+            function focusThisWindow() {
+                activeWindow = controller;
+                hiddenInput.value = currentTypedSpan ? currentTypedSpan.textContent : '';
+                hiddenInput.focus();
+                bringToFront();
+            }
 
-            typeLine(entry.cmd, cmdSpan, () => {
-                const out = document.createElement('div');
-                out.className = 'output';
-                out.textContent = entry.output.join('\n');
-                body.appendChild(out);
-                setTimeout(() => renderEntry(index + 1), 260);
+            el.addEventListener('pointerdown', bringToFront);
+            bodyEl.addEventListener('click', focusThisWindow);
+
+            function typeLine(text, target, done) {
+                let i = 0;
+                (function step() {
+                    if (i <= text.length) {
+                        target.textContent = text.slice(0, i);
+                        i++;
+                        setTimeout(step, 22 + Math.random() * 28);
+                    } else {
+                        done();
+                    }
+                })();
+            }
+
+            function renderEntry(index) {
+                if (index >= entries.length) {
+                    renderFinalPrompt(true);
+                    return;
+                }
+
+                const entry = entries[index];
+                const line = document.createElement('div');
+                line.className = 'line';
+                line.innerHTML = PROMPT_HTML;
+                const cmdSpan = document.createElement('span');
+                cmdSpan.className = 'cmd';
+                line.appendChild(cmdSpan);
+                bodyEl.appendChild(line);
+
+                typeLine(entry.cmd, cmdSpan, () => {
+                    const out = document.createElement('div');
+                    out.className = 'output';
+                    out.innerHTML = entry.output.join('\n');
+                    bodyEl.appendChild(out);
+                    setTimeout(() => renderEntry(index + 1), 260);
+                });
+            }
+
+            function renderFinalPrompt(shouldFocus) {
+                const line = document.createElement('div');
+                line.className = 'line';
+                line.innerHTML = PROMPT_HTML;
+
+                const typed = document.createElement('span');
+                typed.className = 'cmd';
+                const caret = document.createElement('span');
+                caret.className = 'caret';
+
+                line.appendChild(typed);
+                line.appendChild(caret);
+                bodyEl.appendChild(line);
+
+                currentTypedSpan = typed;
+                activeCaret = caret;
+
+                if (shouldFocus) {
+                    focusThisWindow();
+                }
+            }
+
+            function submitCommand(raw) {
+                if (activeCaret) activeCaret.remove();
+                const value = raw.trim();
+
+                if (value.toLowerCase() === 'clear') {
+                    bodyEl.innerHTML = '';
+                    renderFinalPrompt(false);
+                    return;
+                }
+
+                if (value !== '') {
+                    const match = entries.find((en) => en.cmd.toLowerCase() === value.toLowerCase());
+                    const out = document.createElement('div');
+                    out.className = 'output';
+                    if (match) {
+                        out.innerHTML = match.output.join('\n');
+                    } else {
+                        out.textContent = 'bash: ' + value + ': comando no encontrado';
+                    }
+                    bodyEl.appendChild(out);
+                }
+
+                renderFinalPrompt(false);
+                bodyEl.scrollTop = bodyEl.scrollHeight;
+            }
+
+            const controller = {
+                handleInput(value) {
+                    if (currentTypedSpan) currentTypedSpan.textContent = value;
+                },
+                handleEnter(value) {
+                    submitCommand(value);
+                }
+            };
+
+            headerEl.addEventListener('pointerdown', (e) => {
+                if (e.target.closest('.dot') || isAnimating) return;
+                bringToFront();
+
+                const rect = el.getBoundingClientRect();
+                const startX = e.clientX;
+                const startY = e.clientY;
+                const startLeft = rect.left;
+                const startTop = rect.top;
+
+                headerEl.setPointerCapture(e.pointerId);
+                headerEl.style.cursor = 'grabbing';
+
+                function onMove(ev) {
+                    const maxLeftNow = Math.max(window.innerWidth - el.offsetWidth, 0);
+                    const maxTopNow = Math.max(window.innerHeight - TASKBAR_HEIGHT - el.offsetHeight, 0);
+                    const newLeft = clamp(startLeft + (ev.clientX - startX), 0, maxLeftNow);
+                    const newTop = clamp(startTop + (ev.clientY - startY), 0, maxTopNow);
+                    el.style.left = newLeft + 'px';
+                    el.style.top = newTop + 'px';
+                }
+
+                function onUp() {
+                    headerEl.releasePointerCapture(e.pointerId);
+                    headerEl.style.cursor = 'grab';
+                    headerEl.removeEventListener('pointermove', onMove);
+                    headerEl.removeEventListener('pointerup', onUp);
+                }
+
+                headerEl.addEventListener('pointermove', onMove);
+                headerEl.addEventListener('pointerup', onUp);
             });
+
+            resizeHandle.addEventListener('pointerdown', (e) => {
+                e.stopPropagation();
+                if (isAnimating) return;
+                bringToFront();
+
+                const rect = el.getBoundingClientRect();
+                const startX = e.clientX;
+                const startY = e.clientY;
+                const startW = rect.width;
+                const startH = rect.height;
+
+                resizeHandle.setPointerCapture(e.pointerId);
+
+                function onMove(ev) {
+                    const maxW = window.innerWidth - rect.left;
+                    const maxH = (window.innerHeight - TASKBAR_HEIGHT) - rect.top;
+                    const newW = clamp(startW + (ev.clientX - startX), MIN_W, maxW);
+                    const newH = clamp(startH + (ev.clientY - startY), MIN_H, maxH);
+                    el.style.width = newW + 'px';
+                    el.style.height = newH + 'px';
+                }
+
+                function onUp() {
+                    resizeHandle.releasePointerCapture(e.pointerId);
+                    resizeHandle.removeEventListener('pointermove', onMove);
+                    resizeHandle.removeEventListener('pointerup', onUp);
+                }
+
+                resizeHandle.addEventListener('pointermove', onMove);
+                resizeHandle.addEventListener('pointerup', onUp);
+            });
+
+            redDot.addEventListener('click', () => {
+                if (isAnimating) return;
+                isAnimating = true;
+                el.classList.add('closing');
+            });
+
+            yellowDot.addEventListener('click', () => {
+                if (isAnimating) return;
+                isAnimating = true;
+                el.classList.add('minimizing');
+            });
+
+            function addDockItem() {
+                dockItem = document.createElement('button');
+                dockItem.className = 'dock-item';
+                dockItem.innerHTML = '<span class="dock-dot"></span>' +
+                    instanceLabel.replace('guest@ciberdefensa: ~', 'ciberdefensa');
+                dockItem.addEventListener('click', restoreWindow);
+                dockEl.appendChild(dockItem);
+            }
+
+            function restoreWindow() {
+                if (dockItem) {
+                    dockItem.remove();
+                    dockItem = null;
+                }
+                el.style.display = '';
+                isAnimating = true;
+                el.classList.add('restoring');
+                focusThisWindow();
+            }
+
+            el.addEventListener('animationend', (e) => {
+                if (e.animationName === 'windowClose') {
+                    el.classList.remove('closing');
+                    el.style.visibility = 'hidden';
+                    bodyEl.innerHTML = '';
+                    if (activeWindow === controller) activeWindow = null;
+
+                    setTimeout(() => {
+                        el.style.visibility = '';
+                        el.classList.add('opening');
+                        renderEntry(0);
+                    }, 600);
+                } else if (e.animationName === 'windowOpen') {
+                    el.classList.remove('opening');
+                    isAnimating = false;
+                } else if (e.animationName === 'windowMinimize') {
+                    el.classList.remove('minimizing');
+                    el.style.display = 'none';
+                    isAnimating = false;
+                    if (activeWindow === controller) activeWindow = null;
+                    addDockItem();
+                } else if (e.animationName === 'windowRestore') {
+                    el.classList.remove('restoring');
+                    isAnimating = false;
+                }
+            });
+
+            renderEntry(0);
         }
 
-        function renderFinalPrompt() {
-            const line = document.createElement('div');
-            line.className = 'line';
-            line.innerHTML = PROMPT_HTML + '<span class="caret"></span>';
-            body.appendChild(line);
-        }
-
-        renderEntry(0);
+        startBtn.addEventListener('click', () => createTerminalWindow());
 
         if (window.matchMedia('(pointer: fine)').matches) {
             document.body.classList.add('custom-cursor');
-            const cursor = document.createElement('div');
-            cursor.className = 'cursor-block';
-            document.body.appendChild(cursor);
-
-            window.addEventListener('mousemove', (e) => {
-                cursor.style.left = e.clientX + 'px';
-                cursor.style.top = e.clientY + 'px';
-            });
-            window.addEventListener('mousedown', () => cursor.classList.add('clicking'));
-            window.addEventListener('mouseup', () => cursor.classList.remove('clicking'));
         }
+
+        createTerminalWindow();
     </script>
 </body>
 </html>
