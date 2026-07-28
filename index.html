@@ -1,374 +1,915 @@
 <!DOCTYPE html>
-<html lang="es">a
+<html lang="es">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="description" content="Ciberdefensa Team: comunidad nacida en FADENA - UNDEF. Recursos, herramientas y espacios para aprender ciberdefensa.">
-  <meta name="theme-color" content="#080b18">
-  <title>CiberdefensaTeam | FADENA · UNDEF</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CiberDefensa Team</title>
+    <style>
+        :root {
+            --bg: #0a0e14;
+            --terminal-bg: #0d1117;
+            --border: #222a35;
+            --text: #b7c0cc;
+            --dim: #5b6472;
+            --accent: #5fb87a;
+            --accent-2: #7aa2c9;
+            --warn: #c9a227;
+            --dot-red: #c9575a;
+            --dot-yellow: #c9a227;
+            --dot-green: #3ea55c;
+            --taskbar-height: 52px;
+        }
 
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cpath fill='%230F4C81' d='M50 5 87 20v29c0 24-15 38-37 46C28 87 13 73 13 49V20z'/%3E%3Cpath fill='none' stroke='%23fff' stroke-width='7' d='m31 50 12 12 26-28'/%3E%3C/svg%3E">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css">
+        * {
+            box-sizing: border-box;
+        }
+
+        html, body {
+            height: 100%;
+            overflow: hidden;
+        }
+
+        body {
+            margin: 0;
+            background: radial-gradient(circle at 50% 0%, #131a24 0%, var(--bg) 60%);
+            color: var(--text);
+            font-family: "Cascadia Code", "Fira Code", ui-monospace, "SFMono-Regular", Consolas, "Courier New", monospace;
+        }
+
+        body.custom-cursor {
+            cursor: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='22' height='22' viewBox='0 0 22 22'><path d='M3 1 L3 18 L7.5 14.2 L10.5 20.5 L13.3 19.1 L10.3 13 L17 13 Z' fill='black' stroke='%23e2e8f0' stroke-width='1.2' stroke-linejoin='round'/></svg>") 3 1, auto;
+        }
+
+        .hidden-input {
+            position: fixed;
+            top: -100px;
+            left: -100px;
+            width: 1px;
+            height: 1px;
+            opacity: 0;
+            border: 0;
+            padding: 0;
+            background: transparent;
+        }
+
+        @keyframes blink {
+            0%, 49% { opacity: 0.85; }
+            50%, 100% { opacity: 0.15; }
+        }
+
+        .terminal {
+            position: fixed;
+            display: flex;
+            flex-direction: column;
+            background: var(--terminal-bg);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+            overflow: hidden;
+            transform-origin: 30px 24px;
+        }
+
+        .terminal.closing {
+            animation: windowClose 0.32s ease-in forwards;
+        }
+
+        .terminal.minimizing,
+        .terminal.restoring {
+            transform-origin: center bottom;
+        }
+
+        .terminal.minimizing {
+            animation: windowMinimize 0.28s ease-in forwards;
+        }
+
+        .terminal.restoring {
+            animation: windowRestore 0.28s ease-out forwards;
+        }
+
+        @keyframes windowClose {
+            from { opacity: 1; transform: scale(1); }
+            to { opacity: 0; transform: scale(0.04); }
+        }
+
+        @keyframes windowMinimize {
+            from { opacity: 1; transform: scale(1) translateY(0); }
+            to { opacity: 0; transform: scale(0.15) translateY(55vh); }
+        }
+
+        @keyframes windowRestore {
+            from { opacity: 0; transform: scale(0.15) translateY(55vh); }
+            to { opacity: 1; transform: scale(1) translateY(0); }
+        }
+
+        .terminal-header {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.7rem 0.9rem;
+            background: #10151c;
+            border-bottom: 1px solid var(--border);
+            user-select: none;
+            touch-action: none;
+            cursor: grab;
+            flex: 0 0 auto;
+        }
+
+        .dot {
+            width: 11px;
+            height: 11px;
+            border-radius: 50%;
+        }
+
+        .dot.red { background: var(--dot-red); }
+        .dot.yellow { background: var(--dot-yellow); }
+        .dot.green { background: var(--dot-green); }
+
+        .terminal-title {
+            flex: 1;
+            text-align: center;
+            font-size: 0.75rem;
+            color: var(--dim);
+            letter-spacing: 0.02em;
+        }
+
+        .terminal-body {
+            flex: 1 1 auto;
+            min-height: 0;
+            overflow-y: auto;
+            padding: 1.4rem 1.4rem 1.6rem;
+            font-size: 0.92rem;
+            line-height: 1.65;
+        }
+
+        .line {
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+
+        .prompt {
+            color: var(--accent-2);
+        }
+
+        .prompt .path {
+            color: var(--accent);
+        }
+
+        .cmd {
+            color: var(--text);
+        }
+
+        .output {
+            color: var(--dim);
+            margin: 0.1rem 0 0.7rem 0;
+            white-space: pre-wrap;
+        }
+
+        .output .highlight {
+            color: var(--warn);
+        }
+
+        .output a {
+            color: var(--accent-2);
+            text-decoration: underline;
+            text-decoration-color: rgba(122, 162, 201, 0.4);
+            text-underline-offset: 2px;
+        }
+
+        .output a:hover {
+            color: var(--accent);
+            text-decoration-color: var(--accent);
+        }
+
+        .caret {
+            display: inline-block;
+            width: 8px;
+            height: 1.1em;
+            background: var(--accent);
+            vertical-align: text-bottom;
+            margin-left: 2px;
+            animation: blink 1s steps(1) infinite;
+        }
+
+        .resize-handle {
+            position: absolute;
+            right: 2px;
+            bottom: 2px;
+            width: 14px;
+            height: 14px;
+            cursor: nwse-resize;
+            background:
+                linear-gradient(135deg,
+                    transparent 0 40%, var(--dim) 40% 46%,
+                    transparent 46% 60%, var(--dim) 60% 66%,
+                    transparent 66% 80%, var(--dim) 80% 86%,
+                    transparent 86%);
+        }
+
+        .taskbar {
+            position: fixed;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            height: var(--taskbar-height);
+            background: #10151c;
+            border-top: 1px solid var(--border);
+            display: none;
+            align-items: center;
+            gap: 0.6rem;
+            padding: 0 0.8rem;
+            z-index: 1000;
+        }
+
+        .dock {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            overflow-x: auto;
+            height: 100%;
+        }
+
+        .dock-item {
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+            font-family: inherit;
+            font-size: 0.78rem;
+            color: var(--text);
+            background: #131a24;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 0.35rem 0.7rem;
+            white-space: nowrap;
+            flex: 0 0 auto;
+        }
+
+        .dock-item:hover {
+            border-color: var(--accent-2);
+        }
+
+        .dock-dot {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            background: var(--accent);
+        }
+
+        @media (max-width: 640px) {
+            .terminal-body {
+                font-size: 0.82rem;
+                padding: 1.1rem;
+            }
+        }
+
+        .ig-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(5, 8, 12, 0.65);
+            backdrop-filter: blur(2px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 5000;
+            animation: igFadeIn 0.25s ease-out;
+        }
+
+        .ig-overlay.closing {
+            animation: igFadeOut 0.2s ease-in forwards;
+        }
+
+        @keyframes igFadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        @keyframes igFadeOut {
+            from { opacity: 1; }
+            to { opacity: 0; }
+        }
+
+        .ig-modal {
+            width: min(380px, 90vw);
+            background: var(--terminal-bg);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+            overflow: hidden;
+            animation: windowRestore 0.28s ease-out;
+        }
+
+        .ig-overlay.closing .ig-modal {
+            animation: windowClose 0.2s ease-in forwards;
+        }
+
+        .ig-body {
+            padding: 1.4rem 1.4rem 1.6rem;
+            font-size: 0.92rem;
+            line-height: 1.6;
+            text-align: center;
+        }
+
+        .ig-body p {
+            margin: 0 0 0.7rem;
+            color: var(--text);
+        }
+
+        .ig-body p.ig-title {
+            color: var(--accent);
+            font-weight: bold;
+        }
+
+        .ig-link {
+            display: inline-block;
+            margin: 0.4rem 0 1.2rem;
+            color: var(--accent-2);
+            text-decoration: underline;
+            text-decoration-color: rgba(122, 162, 201, 0.4);
+            text-underline-offset: 2px;
+            font-size: 0.95rem;
+        }
+
+        .ig-link:hover {
+            color: var(--accent);
+            text-decoration-color: var(--accent);
+        }
+
+        .ig-links {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            align-items: center;
+            margin-top: 0.6rem;
+        }
+
+        .ig-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.6rem;
+            padding: 0.5rem 0.9rem;
+            border-radius: 8px;
+            font-size: 0.95rem;
+            text-decoration: none;
+            border: 1px solid var(--border);
+            background: transparent;
+            color: var(--text);
+            width: min(320px, 80%);
+            box-shadow: 0 6px 18px rgba(0,0,0,0.25);
+        }
+
+        .ig-btn.primary {
+            background: linear-gradient(180deg, rgba(95,184,122,0.12), rgba(95,184,122,0.04));
+            border-color: rgba(95,184,122,0.25);
+            color: #eaf9ef;
+            font-weight: 600;
+        }
+
+        .ig-btn.secondary {
+            background: transparent;
+            border-color: var(--border);
+            color: var(--accent-2);
+        }
+
+        .ig-close-btn {
+            display: block;
+            margin: 0 auto;
+            font-family: inherit;
+            font-size: 0.78rem;
+            color: var(--text);
+            background: #131a24;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 0.45rem 1rem;
+            cursor: pointer;
+        }
+
+        .ig-close-btn:hover {
+            border-color: var(--accent-2);
+            color: var(--accent-2);
+        }
+    </style>
 </head>
+<body>
+    <div class="ig-overlay" id="igOverlay">
+        <div class="ig-modal">
+            <div class="terminal-header">
+                <span class="dot red" id="igCloseDot"></span>
+                <span class="dot yellow"></span>
+                <span class="dot green"></span>
+                <span class="terminal-title">guest@ciberdefensa: ~/instagram</span>
+            </div>
+            <div class="ig-body">
+                <p class="ig-title">📸 Seguí a CiberDefensa Team</p>
+                <p>Noticias, memes e info de ciberdefensa.</p>
 
-<body class="custom-cursor">
-  <a class="skip-link" href="#contenido">Saltar al contenido</a>
+                <div class="ig-links" role="group" aria-label="Enlaces de CiberDefensa">
+                    <a class="ig-btn primary" href="https://instagram.com/ciberdefensa.team" target="_blank" rel="noopener">
+                        <small style="opacity:0.85">Instagram</small>
+                    </a>
 
-  <div class="page-ambient" aria-hidden="true">
-    <span class="ambient-orb ambient-orb--blue"></span>
-    <span class="ambient-orb ambient-orb--violet"></span>
-    <span class="ambient-grid"></span>
-  </div>
+                    <a class="ig-btn secondary" href="https://wa.me/link" target="_blank" rel="noopener">
+                        <span>Grupo de WhatsApp</span>
+                    </a>
 
-  <header class="site-header" id="site-header">
-    <div class="container nav-shell">
-      <a class="brand" href="#inicio" aria-label="Ciberdefensa Team, ir al inicio">
-        <!--
-          Cuando tengan el logo final, reemplazá este SVG por:
-          <img src="assets/logo.png" alt="Logo Ciberdefensa Team" class="brand-logo-image">
-        -->
-        <span class="brand-mark" aria-hidden="true">
-          <svg viewBox="0 0 48 48" fill="none">
-            <path d="M24 3.5 40 10v12.4c0 10.7-6.5 18.6-16 22.1C14.5 41 8 33.1 8 22.4V10l16-6.5Z" stroke="currentColor" stroke-width="2.25"/>
-            <path d="m15.5 24 5.4 5.4L33 17.2" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
-          </svg>
-        </span>
-        <span class="brand-copy">
-          <strong>Ciberdefensa <em>Team</em></strong>
-          <small>FADENA · UNDEF</small>
-        </span>
-      </a>
-
-      <button class="menu-toggle" id="nav-toggle" type="button" aria-label="Abrir menú de navegación" aria-controls="site-nav" aria-expanded="false">
-        <span></span><span></span>
-      </button>
-
-      <nav class="site-nav" id="site-nav" aria-label="Navegación principal">
-        <a class="is-active" href="#inicio">Inicio</a>
-        <a href="#conecta">Conectá</a>
-        <a href="#recursos">Recursos</a>
-        <a href="#comunidad">Comunidad</a>
-        <a href="#contacto">Contacto</a>
-      </nav>
+                    <button class="ig-close-btn" id="igCloseBtn" aria-label="Cerrar modal">Cerrar</button>
+                </div>
+            </div>
+        </div>
     </div>
-  </header>
 
-  <main id="contenido">
-    <section class="hero-section" id="inicio" aria-labelledby="hero-title">
-      <div class="container">
-        <div class="hero-intro" data-reveal>
-          <p class="system-label"><span aria-hidden="true">//</span> red de conocimiento abierta</p>
-          <div class="hero-intro-grid">
-            <div>
-              <p class="connection-state"><span class="status-dot" aria-hidden="true"></span> secure_connection_established</p>
-              <h1 id="hero-title">De alumnos de FADENA - UNDEF a una <span>comunidad abierta</span> de ciberdefensa.</h1>
-            </div>
-            <p class="hero-summary">
-              Empezamos en la Licenciatura en Ciberdefensa. Hoy reunimos recursos, herramientas y espacios
-              para quienes quieren aprender, compartir y defender el ciberespacio.
-            </p>
-          </div>
-        </div>
-
-        <!-- La consola es el bloque principal: conserva la estética Mac del archivo original, pero es responsive y permite recorrer el resto del sitio. -->
-        <section class="terminal-window" aria-label="Consola de bienvenida de Ciberdefensa Team" data-reveal>
-          <header class="terminal-titlebar">
-            <div class="window-controls" aria-hidden="true">
-              <span class="window-control window-control--close"></span>
-              <span class="window-control window-control--minimize"></span>
-              <span class="window-control window-control--maximize"></span>
-            </div>
-            <p class="terminal-title">ciberdefensa@comunidad:~</p>
-            <span class="terminal-signal"><i aria-hidden="true"></i> online</span>
-          </header>
-
-          <div class="terminal-body">
-            <div class="terminal-screen">
-              <p class="terminal-path">/home/ciberdefensa/portal <span>·</span> v1.0.0</p>
-              <div class="terminal-log" id="terminal-log" role="log" aria-live="polite">
-                <p class="terminal-command"><span class="prompt-user">visitor@ciberdefensa</span><span class="prompt-sign">:~$</span> cat welcome.txt</p>
-                <p class="terminal-response terminal-response--lead">Bienvenida/o a Ciberdefensa Team.</p>
-                <p class="terminal-response" data-terminal-type>Una base común para estudiar, practicar y compartir ciberdefensa.</p>
-              </div>
-
-              <div class="terminal-actions" aria-label="Acciones principales">
-                <a class="terminal-action terminal-action--primary" href="#recursos">
-                  <span class="action-icon" aria-hidden="true">↘</span>
-                  Explorar recursos
-                </a>
-                <a class="terminal-action" data-link="discord" href="https://discord.gg/TU-INVITE" target="_blank" rel="noopener noreferrer">
-                  <span class="action-icon" aria-hidden="true">#</span>
-                  Entrar al Discord
-                </a>
-              </div>
-
-              <form class="terminal-command-form" id="terminal-command-form">
-                <label class="sr-only" for="terminal-command">Probá un comando</label>
-                <span class="prompt-user">visitor@ciberdefensa</span><span class="prompt-sign">:~$</span>
-                <input id="terminal-command" name="command" type="text" inputmode="text" autocomplete="off" spellcheck="false" placeholder="escribí 'help' para ver comandos">
-                <button type="submit" aria-label="Ejecutar comando">↵</button>
-              </form>
-              <p class="terminal-hint">Comandos disponibles: <button class="command-chip" type="button" data-command="help">help</button>, <button class="command-chip" type="button" data-command="about">about</button>, <button class="command-chip" type="button" data-command="links">links</button>.</p>
-            </div>
-
-            <aside class="terminal-sidebar" aria-label="Accesos directos">
-              <div class="sidebar-heading">
-                <p>nodos de acceso</p>
-                <span>03</span>
-              </div>
-
-              <a class="terminal-node terminal-node--instagram" data-link="instagram" href="https://www.instagram.com/ciberdefensa.undef/" target="_blank" rel="noopener noreferrer">
-                <span class="node-icon" aria-hidden="true">
-                  <svg viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4.2"/><circle cx="17.3" cy="6.8" r=".9" fill="currentColor" stroke="none"/></svg>
-                </span>
-                <span><small>canal social</small><strong>Instagram</strong><em>@ciberdefensa.undef</em></span>
-                <b aria-hidden="true">↗</b>
-              </a>
-
-              <a class="terminal-node terminal-node--drive" data-link="drive" href="https://drive.google.com/drive/folders/TU_ID_AQUI" target="_blank" rel="noopener noreferrer">
-                <span class="node-icon" aria-hidden="true">
-                  <svg viewBox="0 0 24 24" fill="none"><path d="m8.2 3 7.7.1L22 13.4l-3.9 7.3H6L2 13.2 8.2 3Z"/><path d="m8.2 3 5.7 10.2M20.9 13.3H4"/></svg>
-                </span>
-                <span><small>base compartida</small><strong>Google Drive</strong><em>Apuntes y guías</em></span>
-                <b aria-hidden="true">↗</b>
-              </a>
-
-              <a class="terminal-node terminal-node--whatsapp" data-link="whatsapp" href="https://wa.me/549XXXXXXXXXX" target="_blank" rel="noopener noreferrer">
-                <span class="node-icon" aria-hidden="true">
-                  <svg viewBox="0 0 24 24" fill="none"><path d="M20 11.6a8 8 0 1 1-3.5-6.6"/><path d="m20 4-4.2 7.4L20 12l-8.1-1.5"/><path d="M9.2 10.2c.3 1.8 1.7 3.2 3.5 3.5"/></svg>
-                </span>
-                <span><small>chat directo</small><strong>WhatsApp</strong><em>Consultas rápidas</em></span>
-                <b aria-hidden="true">↗</b>
-              </a>
-            </aside>
-          </div>
-        </section>
-
-        <div class="hero-footer" data-reveal>
-          <p><span class="status-dot" aria-hidden="true"></span> Radar activo — nuevos recursos cada semana</p>
-          <div aria-label="Atajos de navegación">
-            <a href="#conecta">canales</a><span>·</span><a href="#recursos">recursos</a><span>·</span><a href="#contacto">contacto</a>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <section class="section section--connect" id="conecta" aria-labelledby="connect-title">
-      <div class="container">
-        <div class="section-heading" data-reveal>
-          <p class="system-label"><span aria-hidden="true">//</span> conectá</p>
-          <h2 id="connect-title">Encontranos donde estemos.</h2>
-          <p>Tres lugares, un solo grupo. Elegí el canal que mejor se adapte a vos.</p>
-        </div>
-
-        <div class="connect-grid">
-          <article class="access-card access-card--instagram" data-reveal>
-            <div class="access-card-top">
-              <span class="card-icon" aria-hidden="true">
-                <svg viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4.2"/><circle cx="17.3" cy="6.8" r=".9" fill="currentColor" stroke="none"/></svg>
-              </span>
-              <span class="card-index">01 / social</span>
-            </div>
-            <p class="card-label">@ciberdefensa.undef</p>
-            <h3>Instagram</h3>
-            <p>Novedades, flyers de charlas y el detrás de escena de la comunidad.</p>
-            <a data-link="instagram" href="https://www.instagram.com/ciberdefensa.undef/" target="_blank" rel="noopener noreferrer">Seguinos <span aria-hidden="true">↗</span></a>
-          </article>
-
-          <article class="access-card access-card--drive" data-reveal>
-            <div class="access-card-top">
-              <span class="card-icon" aria-hidden="true">
-                <svg viewBox="0 0 24 24" fill="none"><path d="m8.2 3 7.7.1L22 13.4l-3.9 7.3H6L2 13.2 8.2 3Z"/><path d="m8.2 3 5.7 10.2M20.9 13.3H4"/></svg>
-              </span>
-              <span class="card-index">02 / archivos</span>
-            </div>
-            <p class="card-label">Carpeta compartida</p>
-            <h3>Google Drive</h3>
-            <p>Apuntes, guías y material de estudio compartido por los miembros.</p>
-            <a data-link="drive" href="https://drive.google.com/drive/folders/TU_ID_AQUI" target="_blank" rel="noopener noreferrer">Abrir carpeta <span aria-hidden="true">↗</span></a>
-          </article>
-
-          <article class="access-card access-card--whatsapp" data-reveal>
-            <div class="access-card-top">
-              <span class="card-icon" aria-hidden="true">
-                <svg viewBox="0 0 24 24" fill="none"><path d="M20 11.6a8 8 0 1 1-3.5-6.6"/><path d="m20 4-4.2 7.4L20 12l-8.1-1.5"/><path d="M9.2 10.2c.3 1.8 1.7 3.2 3.5 3.5"/></svg>
-              </span>
-              <span class="card-index">03 / directo</span>
-            </div>
-            <p class="card-label">Chat directo</p>
-            <h3>WhatsApp</h3>
-            <p>Consultas rápidas, avisos de último momento y un punto de encuentro.</p>
-            <a data-link="whatsapp" href="https://wa.me/549XXXXXXXXXX" target="_blank" rel="noopener noreferrer">Escribinos <span aria-hidden="true">↗</span></a>
-          </article>
-        </div>
-      </div>
-    </section>
-
-    <section class="section section--resources" id="recursos" aria-labelledby="resources-title">
-      <div class="container">
-        <div class="section-heading section-heading--split" data-reveal>
-          <div>
-            <p class="system-label"><span aria-hidden="true">//</span> recursos</p>
-            <h2 id="resources-title">Material organizado por área.</h2>
-          </div>
-          <p>Una guía rápida para orientarte. El material completo de cada categoría vive en nuestro Discord.</p>
-        </div>
-
-        <div class="resources-grid">
-          <a class="resource-card" href="#comunidad" data-reveal>
-            <span class="resource-number">01</span>
-            <span class="resource-icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24" fill="none"><path d="m12 2 7 3v6c0 4.8-3 8.7-7 10-4-1.3-7-5.2-7-10V5l7-3Z"/><path d="m9 12 2 2 4-4"/></svg>
-            </span>
-            <span class="resource-label">Marcos de referencia</span>
-            <strong>Frameworks y normas</strong>
-            <span>NIST CSF, ISO/IEC 27001 y MITRE ATT&amp;CK para modelar riesgo, controles y madurez.</span>
-            <small>Ver en Discord <b aria-hidden="true">→</b></small>
-          </a>
-
-          <a class="resource-card" href="#comunidad" data-reveal>
-            <span class="resource-number">02</span>
-            <span class="resource-icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24" fill="none"><path d="m4 17 6-6-6-6"/><path d="M12 19h8"/></svg>
-            </span>
-            <span class="resource-label">Práctica técnica</span>
-            <strong>Herramientas ofensivas y defensivas</strong>
-            <span>Nmap, Wireshark, Metasploit y Kali Linux para análisis de tráfico y hardening.</span>
-            <small>Ver en Discord <b aria-hidden="true">→</b></small>
-          </a>
-
-          <a class="resource-card" href="#comunidad" data-reveal>
-            <span class="resource-number">03</span>
-            <span class="resource-icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
-            </span>
-            <span class="resource-label">Inteligencia</span>
-            <strong>OSINT y threat intel</strong>
-            <span>Técnicas y plataformas para recolección de inteligencia abierta y análisis de amenazas.</span>
-            <small>Ver en Discord <b aria-hidden="true">→</b></small>
-          </a>
-
-          <a class="resource-card" href="#comunidad" data-reveal>
-            <span class="resource-number">04</span>
-            <span class="resource-icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>
-            </span>
-            <span class="resource-label">Entrenamiento</span>
-            <strong>Práctica y CTFs</strong>
-            <span>Laboratorios tipo TryHackMe y HackTheBox, y competencias CTF para entrenar en la práctica.</span>
-            <small>Ver en Discord <b aria-hidden="true">→</b></small>
-          </a>
-
-          <a class="resource-card" href="#comunidad" data-reveal>
-            <span class="resource-number">05</span>
-            <span class="resource-icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24" fill="none"><path d="M6 3h9l4 4v14a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Z"/><path d="M9 12h6M9 16h6M9 8h3"/></svg>
-            </span>
-            <span class="resource-label">Investigación</span>
-            <strong>Papers y material académico</strong>
-            <span>Publicaciones y apuntes vinculados a la carrera y a la ciberdefensa aplicada.</span>
-            <small>Ver en Discord <b aria-hidden="true">→</b></small>
-          </a>
-
-          <a class="resource-card" href="#comunidad" data-reveal>
-            <span class="resource-number">06</span>
-            <span class="resource-icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24" fill="none"><path d="M12 3v18M7 7l-4 6a4 4 0 0 0 8 0l-4-6ZM17 7l-4 6a4 4 0 0 0 8 0l-4-6Z"/></svg>
-            </span>
-            <span class="resource-label">Doctrina</span>
-            <strong>Ciberdefensa nacional</strong>
-            <span>Doctrina, legislación y organismos vinculados a la defensa del ciberespacio en Argentina.</span>
-            <small>Ver en Discord <b aria-hidden="true">→</b></small>
-          </a>
-        </div>
-      </div>
-    </section>
-
-    <section class="section section--community" id="comunidad" aria-labelledby="community-title">
-      <div class="container">
-        <div class="discord-card" data-reveal>
-          <div class="discord-card__copy">
-            <p class="system-label"><span aria-hidden="true">//</span> comunidad discord</p>
-            <h2 id="community-title">Todo el material, ordenado por canales.</h2>
-            <p>Guías clasificadas por tema, ayuda entre pares y el material que no entra en un posteo. Es el corazón de los recursos de la comunidad.</p>
-            <p class="discord-status"><span class="status-dot" aria-hidden="true"></span> Servidor activo</p>
-          </div>
-          <div class="discord-card__channel-list" aria-hidden="true">
-            <span><b>#</b> novedades</span>
-            <span><b>#</b> recursos</span>
-            <span><b>#</b> consultas</span>
-            <span><b>#</b> ctf-labs</span>
-          </div>
-          <a class="discord-cta" data-link="discord" href="https://discord.gg/TU-INVITE" target="_blank" rel="noopener noreferrer">
-            <span>Unirme al Discord</span><b aria-hidden="true">↗</b>
-          </a>
-        </div>
-      </div>
-    </section>
-
-    <section class="section section--contact" id="contacto" aria-labelledby="contact-title">
-      <div class="container contact-layout">
-        <div class="contact-copy" data-reveal>
-          <p class="system-label"><span aria-hidden="true">//</span> contacto</p>
-          <h2 id="contact-title">¿Consulta, propuesta o querés sumar contenido?</h2>
-          <p>Escribinos por acá o directamente desde cualquiera de estos accesos.</p>
-          <div class="contact-chips">
-            <a data-link="instagram" href="https://www.instagram.com/ciberdefensa.undef/" target="_blank" rel="noopener noreferrer">Instagram <span aria-hidden="true">↗</span></a>
-            <a data-link="drive" href="https://drive.google.com/drive/folders/TU_ID_AQUI" target="_blank" rel="noopener noreferrer">Drive <span aria-hidden="true">↗</span></a>
-            <a data-link="whatsapp" href="https://wa.me/549XXXXXXXXXX" target="_blank" rel="noopener noreferrer">WhatsApp <span aria-hidden="true">↗</span></a>
-            <a data-link="discord" href="https://discord.gg/TU-INVITE" target="_blank" rel="noopener noreferrer">Discord <span aria-hidden="true">↗</span></a>
-          </div>
-        </div>
-
-        <form class="contact-form" id="contact-form" data-reveal>
-          <div class="form-field">
-            <label for="cf-nombre">Nombre</label>
-            <input id="cf-nombre" name="nombre" type="text" autocomplete="name" required>
-          </div>
-          <div class="form-field">
-            <label for="cf-email">Email</label>
-            <input id="cf-email" name="email" type="email" autocomplete="email" required>
-          </div>
-          <div class="form-field">
-            <label for="cf-mensaje">Mensaje</label>
-            <textarea id="cf-mensaje" name="mensaje" rows="5" required></textarea>
-          </div>
-          <button class="send-button" type="submit"><span>Enviar mensaje</span><b aria-hidden="true">↗</b></button>
-          <p class="form-feedback" id="form-feedback" aria-live="polite"></p>
-        </form>
-      </div>
-    </section>
-  </main>
-
-  <footer class="site-footer">
-    <div class="container">
-      <div class="footer-main">
-        <a class="footer-brand" href="#inicio">
-          <span class="brand-mark brand-mark--small" aria-hidden="true">
-            <svg viewBox="0 0 48 48" fill="none"><path d="M24 3.5 40 10v12.4c0 10.7-6.5 18.6-16 22.1C14.5 41 8 33.1 8 22.4V10l16-6.5Z" stroke="currentColor" stroke-width="2.25"/><path d="m15.5 24 5.4 5.4L33 17.2" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-          </span>
-          <span>Ciberdefensa Team</span>
-        </a>
-        <nav class="footer-nav" aria-label="Navegación del pie">
-          <a href="#inicio">Inicio</a>
-          <a href="#recursos">Recursos</a>
-          <a href="#comunidad">Comunidad</a>
-          <a href="#contacto">Contacto</a>
-        </nav>
-        <div class="footer-socials">
-          <a data-link="instagram" href="https://www.instagram.com/ciberdefensa.undef/" target="_blank" rel="noopener noreferrer">IG</a>
-          <a data-link="drive" href="https://drive.google.com/drive/folders/TU_ID_AQUI" target="_blank" rel="noopener noreferrer">DR</a>
-          <a data-link="whatsapp" href="https://wa.me/549XXXXXXXXXX" target="_blank" rel="noopener noreferrer">WA</a>
-          <a data-link="discord" href="https://discord.gg/TU-INVITE" target="_blank" rel="noopener noreferrer">DC</a>
-        </div>
-      </div>
-      <p class="footer-note">© <span id="year"></span> CiberdefensaTeam — Comunidad nacida en FADENA · UNDEF.</p>
+    <div class="taskbar">
+        <div class="dock" id="dock"></div>
     </div>
-  </footer>
 
-  <script src="script.js" defer></script>
+    <script>
+        document.addEventListener('contextmenu', (e) => e.preventDefault());
+
+        document.addEventListener('keydown', (e) => {
+            const key = e.key;
+            const blockedCombo =
+                key === 'F12' ||
+                (e.ctrlKey && e.shiftKey && ['I', 'i', 'J', 'j', 'C', 'c'].includes(key)) ||
+                (e.ctrlKey && ['U', 'u', 'S', 's'].includes(key));
+
+            if (blockedCombo) {
+                e.preventDefault();
+            }
+        });
+
+        const TASKBAR_HEIGHT = 52;
+        const MIN_W = 320;
+        const MIN_H = 240;
+        const DEFAULT_W = 700;
+        const DEFAULT_H = 440;
+
+        const PROMPT_HTML = '<span class="prompt">guest@<span class="path">ciberdefensa</span>:~$</span> ';
+
+        const HELP_TEXT = 'Comandos: cat about.md, cat instagram.md, cat banner.txt, start, clear, help';
+
+        const BANNER_WIDTH = 50;
+
+        function centerText(text, width) {
+            const pad = Math.max(width - text.length, 0);
+            const left = Math.floor(pad / 2);
+            return ' '.repeat(left) + text + ' '.repeat(pad - left);
+        }
+
+        function bannerBorder(width) {
+            return '+' + '-'.repeat(width + 2) + '+';
+        }
+
+        function bannerLine(text, width) {
+            return '| ' + centerText(text, width) + ' |';
+        }
+
+        const BANNER_LINES = [
+            bannerBorder(BANNER_WIDTH),
+            bannerLine('C I B E R D E F E N S A   T E A M', BANNER_WIDTH),
+            bannerBorder(BANNER_WIDTH),
+            '',
+            'Grupo de estudiantes de la FADENA 🛡️',
+            'Noticias, memes e info de ciberseguridad, todo en un solo lugar.',
+            '',
+            '<a href="https://instagram.com/ciberdefensa.team" target="_blank" rel="noopener">instagram.com/ciberdefensa.team</a>',
+            '',
+            HELP_TEXT
+        ];
+
+        const commands = [
+            {
+                cmd: 'cat about.md',
+                output: [
+                    'Grupo de estudiantes de la FADENA 🛡️',
+                    'Noticias, memes e info de ciberseguridad, todo en un solo lugar.'
+                ]
+            },
+            {
+                cmd: 'cat instagram.md',
+                output: ['<a href="https://instagram.com/ciberdefensa.team" target="_blank" rel="noopener">instagram.com/ciberdefensa.team</a>']
+            },
+            {
+                cmd: 'cat banner.txt',
+                output: BANNER_LINES
+            },
+            {
+                cmd: 'help',
+                output: [HELP_TEXT]
+            }
+        ];
+
+        const introSteps = [commands.find((c) => c.cmd === 'cat banner.txt')];
+
+        const dockEl = document.getElementById('dock');
+        const taskbarEl = document.querySelector('.taskbar');
+
+        function updateTaskbarVisibility() {
+            taskbarEl.style.display = dockEl.children.length > 0 ? 'flex' : 'none';
+        }
+
+        const hiddenInput = document.createElement('input');
+        hiddenInput.type = 'text';
+        hiddenInput.className = 'hidden-input';
+        hiddenInput.autocomplete = 'off';
+        hiddenInput.spellcheck = false;
+        hiddenInput.setAttribute('aria-label', 'terminal input');
+        document.body.appendChild(hiddenInput);
+
+        let zIndexCounter = 10;
+        let windowCount = 0;
+        let activeWindow = null;
+        const windows = [];
+
+        hiddenInput.addEventListener('input', () => {
+            if (activeWindow) activeWindow.handleInput(hiddenInput.value);
+        });
+
+        hiddenInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && activeWindow) {
+                e.preventDefault();
+                activeWindow.handleEnter(hiddenInput.value);
+                hiddenInput.value = '';
+            }
+        });
+
+        function clamp(v, min, max) {
+            return Math.min(Math.max(v, min), max);
+        }
+
+        function clampWindowToViewport(el) {
+            const maxW = window.innerWidth;
+            const maxH = window.innerHeight - TASKBAR_HEIGHT;
+            const width = clamp(el.offsetWidth, Math.min(MIN_W, maxW), maxW);
+            const height = clamp(el.offsetHeight, Math.min(MIN_H, maxH), maxH);
+            el.style.width = width + 'px';
+            el.style.height = height + 'px';
+            const maxLeft = Math.max(maxW - width, 0);
+            const maxTop = Math.max(maxH - height, 0);
+            el.style.left = clamp(parseFloat(el.style.left) || 0, 0, maxLeft) + 'px';
+            el.style.top = clamp(parseFloat(el.style.top) || 0, 0, maxTop) + 'px';
+        }
+
+        window.addEventListener('resize', () => {
+            document.querySelectorAll('.terminal').forEach(clampWindowToViewport);
+        });
+
+        function createTerminalWindow() {
+            windowCount++;
+            const instanceLabel = windowCount > 1
+                ? 'guest@ciberdefensa: ~ (' + windowCount + ')'
+                : 'guest@ciberdefensa: ~';
+
+            const el = document.createElement('div');
+            el.className = 'terminal';
+            el.innerHTML =
+                '<div class="terminal-header">' +
+                    '<span class="dot red"></span>' +
+                    '<span class="dot yellow"></span>' +
+                    '<span class="dot green"></span>' +
+                    '<span class="terminal-title"></span>' +
+                '</div>' +
+                '<div class="terminal-body"></div>' +
+                '<div class="resize-handle"></div>';
+            el.querySelector('.terminal-title').textContent = instanceLabel;
+            document.body.appendChild(el);
+
+            const bodyEl = el.querySelector('.terminal-body');
+            const headerEl = el.querySelector('.terminal-header');
+            const redDot = el.querySelector('.dot.red');
+            const yellowDot = el.querySelector('.dot.yellow');
+            const greenDot = el.querySelector('.dot.green');
+            const resizeHandle = el.querySelector('.resize-handle');
+
+            const offset = ((windowCount - 1) % 6) * 26;
+            const width = Math.min(DEFAULT_W, window.innerWidth - 32);
+            const height = Math.min(DEFAULT_H, window.innerHeight - TASKBAR_HEIGHT - 32);
+            const maxLeft = Math.max(window.innerWidth - width, 0);
+            const maxTop = Math.max(window.innerHeight - TASKBAR_HEIGHT - height, 0);
+            const baseLeft = (window.innerWidth - width) / 2;
+            const baseTop = (window.innerHeight - TASKBAR_HEIGHT - height) / 2;
+
+            el.style.width = width + 'px';
+            el.style.height = height + 'px';
+            el.style.left = clamp(baseLeft + offset, 0, maxLeft) + 'px';
+            el.style.top = clamp(baseTop + offset, 0, maxTop) + 'px';
+            el.style.zIndex = ++zIndexCounter;
+
+            let isAnimating = false;
+            let currentTypedSpan = null;
+            let activeCaret = null;
+            let dockItem = null;
+            let isMaximized = false;
+            let restoreBounds = null;
+
+            function bringToFront() {
+                el.style.zIndex = ++zIndexCounter;
+            }
+
+            function focusThisWindow() {
+                activeWindow = controller;
+                hiddenInput.value = currentTypedSpan ? currentTypedSpan.textContent : '';
+                hiddenInput.focus();
+                bringToFront();
+            }
+
+            el.addEventListener('pointerdown', bringToFront);
+            bodyEl.addEventListener('click', focusThisWindow);
+
+            function typeLine(text, target, done) {
+                let i = 0;
+                (function step() {
+                    if (i <= text.length) {
+                        target.textContent = text.slice(0, i);
+                        i++;
+                        setTimeout(step, 22 + Math.random() * 28);
+                    } else {
+                        done();
+                    }
+                })();
+            }
+
+            function renderEntry(index) {
+                if (index >= introSteps.length) {
+                    renderFinalPrompt(true);
+                    return;
+                }
+
+                const entry = introSteps[index];
+                const line = document.createElement('div');
+                line.className = 'line';
+                line.innerHTML = PROMPT_HTML;
+                const cmdSpan = document.createElement('span');
+                cmdSpan.className = 'cmd';
+                line.appendChild(cmdSpan);
+                bodyEl.appendChild(line);
+
+                typeLine(entry.cmd, cmdSpan, () => {
+                    const out = document.createElement('div');
+                    out.className = 'output';
+                    out.innerHTML = entry.output.join('\n');
+                    bodyEl.appendChild(out);
+                    setTimeout(() => renderEntry(index + 1), 260);
+                });
+            }
+
+            function renderFinalPrompt(shouldFocus) {
+                const line = document.createElement('div');
+                line.className = 'line';
+                line.innerHTML = PROMPT_HTML;
+
+                const typed = document.createElement('span');
+                typed.className = 'cmd';
+                const caret = document.createElement('span');
+                caret.className = 'caret';
+
+                line.appendChild(typed);
+                line.appendChild(caret);
+                bodyEl.appendChild(line);
+
+                currentTypedSpan = typed;
+                activeCaret = caret;
+
+                if (shouldFocus) {
+                    focusThisWindow();
+                }
+            }
+
+            function submitCommand(raw) {
+                if (activeCaret) activeCaret.remove();
+                const value = raw.trim();
+
+                if (value.toLowerCase() === 'clear') {
+                    bodyEl.innerHTML = '';
+                    renderFinalPrompt(false);
+                    return;
+                }
+
+                if (value.toLowerCase() === 'start') {
+                    const out = document.createElement('div');
+                    out.className = 'output';
+                    out.textContent = 'Iniciando nueva terminal...';
+                    bodyEl.appendChild(out);
+                    renderFinalPrompt(false);
+                    bodyEl.scrollTop = bodyEl.scrollHeight;
+                    createTerminalWindow();
+                    return;
+                }
+
+                if (value !== '') {
+                    const match = commands.find((en) => en.cmd.toLowerCase() === value.toLowerCase());
+                    const out = document.createElement('div');
+                    out.className = 'output';
+                    if (match) {
+                        out.innerHTML = match.output.join('\n');
+                    } else {
+                        out.textContent = 'bash: ' + value + ': comando no encontrado';
+                    }
+                    bodyEl.appendChild(out);
+                }
+
+                renderFinalPrompt(false);
+                bodyEl.scrollTop = bodyEl.scrollHeight;
+            }
+
+            const controller = {
+                handleInput(value) {
+                    if (currentTypedSpan) currentTypedSpan.textContent = value;
+                },
+                handleEnter(value) {
+                    submitCommand(value);
+                }
+            };
+
+            windows.push(controller);
+
+            function maximizeWindow() {
+                restoreBounds = {
+                    left: el.style.left,
+                    top: el.style.top,
+                    width: el.style.width,
+                    height: el.style.height
+                };
+                el.style.left = '0px';
+                el.style.top = '0px';
+                el.style.width = window.innerWidth + 'px';
+                el.style.height = (window.innerHeight - TASKBAR_HEIGHT) + 'px';
+                isMaximized = true;
+                bringToFront();
+            }
+
+            function unmaximizeWindow() {
+                if (restoreBounds) {
+                    el.style.left = restoreBounds.left;
+                    el.style.top = restoreBounds.top;
+                    el.style.width = restoreBounds.width;
+                    el.style.height = restoreBounds.height;
+                }
+                isMaximized = false;
+                bringToFront();
+            }
+
+            greenDot.addEventListener('click', () => {
+                if (isAnimating) return;
+                if (isMaximized) {
+                    unmaximizeWindow();
+                } else {
+                    maximizeWindow();
+                }
+            });
+
+            headerEl.addEventListener('pointerdown', (e) => {
+                if (e.target.closest('.dot') || isAnimating || isMaximized) return;
+                bringToFront();
+
+                const rect = el.getBoundingClientRect();
+                const startX = e.clientX;
+                const startY = e.clientY;
+                const startLeft = rect.left;
+                const startTop = rect.top;
+
+                headerEl.setPointerCapture(e.pointerId);
+                headerEl.style.cursor = 'grabbing';
+
+                function onMove(ev) {
+                    const maxLeftNow = Math.max(window.innerWidth - el.offsetWidth, 0);
+                    const maxTopNow = Math.max(window.innerHeight - TASKBAR_HEIGHT - el.offsetHeight, 0);
+                    const newLeft = clamp(startLeft + (ev.clientX - startX), 0, maxLeftNow);
+                    const newTop = clamp(startTop + (ev.clientY - startY), 0, maxTopNow);
+                    el.style.left = newLeft + 'px';
+                    el.style.top = newTop + 'px';
+                }
+
+                function onUp() {
+                    headerEl.releasePointerCapture(e.pointerId);
+                    headerEl.style.cursor = 'grab';
+                    headerEl.removeEventListener('pointermove', onMove);
+                    headerEl.removeEventListener('pointerup', onUp);
+                }
+
+                headerEl.addEventListener('pointermove', onMove);
+                headerEl.addEventListener('pointerup', onUp);
+            });
+
+            resizeHandle.addEventListener('pointerdown', (e) => {
+                e.stopPropagation();
+                if (isAnimating || isMaximized) return;
+                bringToFront();
+
+                const rect = el.getBoundingClientRect();
+                const startX = e.clientX;
+                const startY = e.clientY;
+                const startW = rect.width;
+                const startH = rect.height;
+
+                resizeHandle.setPointerCapture(e.pointerId);
+
+                function onMove(ev) {
+                    const maxW = window.innerWidth - rect.left;
+                    const maxH = (window.innerHeight - TASKBAR_HEIGHT) - rect.top;
+                    const newW = clamp(startW + (ev.clientX - startX), MIN_W, maxW);
+                    const newH = clamp(startH + (ev.clientY - startY), MIN_H, maxH);
+                    el.style.width = newW + 'px';
+                    el.style.height = newH + 'px';
+                }
+
+                function onUp() {
+                    resizeHandle.releasePointerCapture(e.pointerId);
+                    resizeHandle.removeEventListener('pointermove', onMove);
+                    resizeHandle.removeEventListener('pointerup', onUp);
+                }
+
+                resizeHandle.addEventListener('pointermove', onMove);
+                resizeHandle.addEventListener('pointerup', onUp);
+            });
+
+            redDot.addEventListener('click', () => {
+                if (isAnimating) return;
+                isAnimating = true;
+                el.classList.add('closing');
+            });
+
+            yellowDot.addEventListener('click', () => {
+                if (isAnimating) return;
+                isAnimating = true;
+                el.classList.add('minimizing');
+            });
+
+            function addDockItem() {
+                dockItem = document.createElement('button');
+                dockItem.className = 'dock-item';
+                dockItem.innerHTML = '<span class="dock-dot"></span>' +
+                    instanceLabel.replace('guest@ciberdefensa: ~', 'ciberdefensa');
+                dockItem.addEventListener('click', restoreWindow);
+                dockEl.appendChild(dockItem);
+                updateTaskbarVisibility();
+            }
+
+            function restoreWindow() {
+                if (dockItem) {
+                    dockItem.remove();
+                    dockItem = null;
+                    updateTaskbarVisibility();
+                }
+                el.style.display = '';
+                isAnimating = true;
+                el.classList.add('restoring');
+                focusThisWindow();
+            }
+
+            el.addEventListener('animationend', (e) => {
+                if (e.animationName === 'windowClose') {
+                    if (activeWindow === controller) activeWindow = null;
+
+                    const idx = windows.indexOf(controller);
+                    if (idx !== -1) windows.splice(idx, 1);
+
+                    el.remove();
+
+                    if (windows.length === 0) {
+                        createTerminalWindow();
+                    }
+                } else if (e.animationName === 'windowMinimize') {
+                    el.classList.remove('minimizing');
+                    el.style.display = 'none';
+                    isAnimating = false;
+                    if (activeWindow === controller) activeWindow = null;
+                    addDockItem();
+                } else if (e.animationName === 'windowRestore') {
+                    el.classList.remove('restoring');
+                    isAnimating = false;
+                }
+            });
+
+            renderEntry(0);
+        }
+
+        if (window.matchMedia('(pointer: fine)').matches) {
+            document.body.classList.add('custom-cursor');
+        }
+
+        createTerminalWindow();
+
+        (function () {
+            const overlay = document.getElementById('igOverlay');
+            const closeBtn = document.getElementById('igCloseBtn');
+            const closeDot = document.getElementById('igCloseDot');
+
+            function closePopup() {
+                if (!overlay || overlay.classList.contains('closing')) return;
+                overlay.classList.add('closing');
+                overlay.addEventListener('animationend', () => overlay.remove(), { once: true });
+            }
+
+            if (closeBtn) closeBtn.addEventListener('click', closePopup);
+            if (closeDot) closeDot.addEventListener('click', closePopup);
+            if (overlay) {
+                overlay.addEventListener('click', (e) => {
+                    if (e.target === overlay) closePopup();
+                });
+            }
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape') closePopup();
+            });
+        })();
+    </script>
 </body>
 </html>
