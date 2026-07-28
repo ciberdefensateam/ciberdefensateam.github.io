@@ -101,6 +101,40 @@
             to { opacity: 1; transform: scale(1) translateY(0); }
         }
 
+        .terminal.opening {
+            animation: windowOpen 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+
+        @keyframes windowOpen {
+            from { opacity: 0; transform: scale(0.85); }
+            to { opacity: 1; transform: scale(1); }
+        }
+
+        .window-backdrop {
+            position: fixed;
+            inset: 0;
+            background: rgba(5, 8, 12, 0.65);
+            backdrop-filter: blur(2px);
+        }
+
+        .window-backdrop.opening {
+            animation: backdropIn 0.25s ease-out;
+        }
+
+        .window-backdrop.closing {
+            animation: backdropOut 0.2s ease-in forwards;
+        }
+
+        @keyframes backdropIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        @keyframes backdropOut {
+            from { opacity: 1; }
+            to { opacity: 0; }
+        }
+
         .terminal-header {
             display: flex;
             align-items: center;
@@ -261,46 +295,6 @@
             }
         }
 
-        .ig-overlay {
-            position: fixed;
-            inset: 0;
-            background: rgba(5, 8, 12, 0.65);
-            backdrop-filter: blur(2px);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            z-index: 5000;
-            animation: igFadeIn 0.25s ease-out;
-        }
-
-        .ig-overlay.closing {
-            animation: igFadeOut 0.2s ease-in forwards;
-        }
-
-        @keyframes igFadeIn {
-            from { opacity: 0; }
-            to { opacity: 1; }
-        }
-
-        @keyframes igFadeOut {
-            from { opacity: 1; }
-            to { opacity: 0; }
-        }
-
-        .ig-modal {
-            width: min(380px, 90vw);
-            background: var(--terminal-bg);
-            border: 1px solid var(--border);
-            border-radius: 10px;
-            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
-            overflow: hidden;
-            animation: windowRestore 0.28s ease-out;
-        }
-
-        .ig-overlay.closing .ig-modal {
-            animation: windowClose 0.2s ease-in forwards;
-        }
-
         .ig-body {
             padding: 1.4rem 1.4rem 1.6rem;
             font-size: 0.92rem;
@@ -316,21 +310,6 @@
         .ig-body p.ig-title {
             color: var(--accent);
             font-weight: bold;
-        }
-
-        .ig-link {
-            display: inline-block;
-            margin: 0.4rem 0 1.2rem;
-            color: var(--accent-2);
-            text-decoration: underline;
-            text-decoration-color: rgba(122, 162, 201, 0.4);
-            text-underline-offset: 2px;
-            font-size: 0.95rem;
-        }
-
-        .ig-link:hover {
-            color: var(--accent);
-            text-decoration-color: var(--accent);
         }
 
         .ig-links {
@@ -390,33 +369,6 @@
     </style>
 </head>
 <body>
-    <div class="ig-overlay" id="igOverlay">
-        <div class="ig-modal">
-            <div class="terminal-header">
-                <span class="dot red" id="igCloseDot"></span>
-                <span class="dot yellow"></span>
-                <span class="dot green"></span>
-                <span class="terminal-title">guest@ciberdefensa: ~/instagram</span>
-            </div>
-            <div class="ig-body">
-                <p class="ig-title">📸 Seguí a CiberDefensa Team</p>
-                <p>Noticias, memes e info de ciberdefensa.</p>
-
-                <div class="ig-links" role="group" aria-label="Enlaces de CiberDefensa">
-                    <a class="ig-btn primary" href="https://instagram.com/ciberdefensa.team" target="_blank" rel="noopener">
-                        <small style="opacity:0.85">Instagram</small>
-                    </a>
-
-                    <a class="ig-btn secondary" href="https://wa.me/link" target="_blank" rel="noopener">
-                        <span>Grupo de WhatsApp</span>
-                    </a>
-
-                    <button class="ig-close-btn" id="igCloseBtn" aria-label="Cerrar modal">Cerrar</button>
-                </div>
-            </div>
-        </div>
-    </div>
-
     <div class="taskbar">
         <div class="dock" id="dock"></div>
     </div>
@@ -514,10 +466,8 @@
         hiddenInput.setAttribute('aria-label', 'terminal input');
         document.body.appendChild(hiddenInput);
 
-        let zIndexCounter = 10;
-        let windowCount = 0;
         let activeWindow = null;
-        const windows = [];
+        const terminalControllers = [];
 
         hiddenInput.addEventListener('input', () => {
             if (activeWindow) activeWindow.handleInput(hiddenInput.value);
@@ -549,17 +499,67 @@
         }
 
         window.addEventListener('resize', () => {
-            document.querySelectorAll('.terminal').forEach(clampWindowToViewport);
+            document.querySelectorAll('.terminal').forEach((el) => {
+                if (el.style.display === 'none') return; // minimized: leave its stored bounds alone
+                clampWindowToViewport(el);
+            });
         });
 
-        function createTerminalWindow() {
-            windowCount++;
-            const instanceLabel = windowCount > 1
-                ? 'guest@ciberdefensa: ~ (' + windowCount + ')'
-                : 'guest@ciberdefensa: ~';
+        const MODAL_Z = 4000;
+        let openModal = null;
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && openModal) openModal.close();
+        });
+
+        /**
+         * WindowManager: the single source of truth for every open window,
+         * independent of its type (terminal, instagram, ...). It owns identity
+         * (id + type), stacking order, and which window currently has focus.
+         * Visual animations are cosmetic; the state below is what "close",
+         * "minimize" and "maximize" actually mean.
+         */
+        const WindowManager = {
+            registry: new Map(),
+            zIndexCounter: 10,
+            activeId: null,
+            nextId: 1,
+
+            register(win) {
+                this.registry.set(win.id, win);
+            },
+            unregister(id) {
+                this.registry.delete(id);
+                if (this.activeId === id) this.activeId = null;
+            },
+            bringToFront(win) {
+                win.el.style.zIndex = ++this.zIndexCounter;
+            },
+            setActive(win) {
+                this.activeId = win ? win.id : null;
+            },
+            countByType(type) {
+                let n = 0;
+                this.registry.forEach((w) => { if (w.type === type) n++; });
+                return n;
+            }
+        };
+
+        /**
+         * Builds one OS-style window (chrome, drag, resize, minimize/maximize/close
+         * state machine, taskbar integration) and hands the body element to
+         * config.buildBody so callers only need to supply content per window type.
+         *
+         * config: { type, title, dockLabel, width, height, resizable, cascade,
+         *           extraBodyClass, buildBody(bodyEl, api), onFocus(api), onClose(api) }
+         */
+        function createManagedWindow(config) {
+            const id = WindowManager.nextId++;
 
             const el = document.createElement('div');
             el.className = 'terminal';
+            el.dataset.winType = config.type;
+            el.dataset.winId = String(id);
             el.innerHTML =
                 '<div class="terminal-header">' +
                     '<span class="dot red"></span>' +
@@ -568,8 +568,8 @@
                     '<span class="terminal-title"></span>' +
                 '</div>' +
                 '<div class="terminal-body"></div>' +
-                '<div class="resize-handle"></div>';
-            el.querySelector('.terminal-title').textContent = instanceLabel;
+                (config.resizable ? '<div class="resize-handle"></div>' : '');
+            el.querySelector('.terminal-title').textContent = config.title;
             document.body.appendChild(el);
 
             const bodyEl = el.querySelector('.terminal-body');
@@ -579,149 +579,49 @@
             const greenDot = el.querySelector('.dot.green');
             const resizeHandle = el.querySelector('.resize-handle');
 
-            const offset = ((windowCount - 1) % 6) * 26;
-            const width = Math.min(DEFAULT_W, window.innerWidth - 32);
-            const height = Math.min(DEFAULT_H, window.innerHeight - TASKBAR_HEIGHT - 32);
-            const maxLeft = Math.max(window.innerWidth - width, 0);
-            const maxTop = Math.max(window.innerHeight - TASKBAR_HEIGHT - height, 0);
-            const baseLeft = (window.innerWidth - width) / 2;
-            const baseTop = (window.innerHeight - TASKBAR_HEIGHT - height) / 2;
+            if (config.extraBodyClass) bodyEl.classList.add(config.extraBodyClass);
+            if (typeof config.width === 'number') el.style.width = config.width + 'px';
+            if (typeof config.height === 'number') el.style.height = config.height + 'px';
 
-            el.style.width = width + 'px';
-            el.style.height = height + 'px';
-            el.style.left = clamp(baseLeft + offset, 0, maxLeft) + 'px';
-            el.style.top = clamp(baseTop + offset, 0, maxTop) + 'px';
-            el.style.zIndex = ++zIndexCounter;
-
-            let isAnimating = false;
-            let currentTypedSpan = null;
-            let activeCaret = null;
-            let dockItem = null;
-            let isMaximized = false;
+            // normal | maximized | minimized | closed — the real state; CSS classes below only animate the transition
+            let state = 'normal';
+            let animating = false;
             let restoreBounds = null;
+            let dockItem = null;
+
+            let backdropEl = null;
+            if (config.modal) {
+                backdropEl = document.createElement('div');
+                backdropEl.className = 'window-backdrop';
+                document.body.appendChild(backdropEl);
+                backdropEl.addEventListener('click', () => closeWindow());
+                backdropEl.addEventListener('animationend', (e) => {
+                    if (e.animationName === 'backdropOut') backdropEl.remove();
+                });
+            }
 
             function bringToFront() {
-                el.style.zIndex = ++zIndexCounter;
+                if (config.modal) {
+                    // a modal window always owns the top of the stack while it's open,
+                    // with its backdrop pinned directly beneath it
+                    el.style.zIndex = String(MODAL_Z + 1);
+                    if (backdropEl) backdropEl.style.zIndex = String(MODAL_Z);
+                } else {
+                    WindowManager.bringToFront(api);
+                }
             }
 
             function focusThisWindow() {
-                activeWindow = controller;
-                hiddenInput.value = currentTypedSpan ? currentTypedSpan.textContent : '';
-                hiddenInput.focus();
+                WindowManager.setActive(api);
                 bringToFront();
+                if (config.onFocus) config.onFocus(api);
             }
 
             el.addEventListener('pointerdown', bringToFront);
             bodyEl.addEventListener('click', focusThisWindow);
 
-            function typeLine(text, target, done) {
-                let i = 0;
-                (function step() {
-                    if (i <= text.length) {
-                        target.textContent = text.slice(0, i);
-                        i++;
-                        setTimeout(step, 22 + Math.random() * 28);
-                    } else {
-                        done();
-                    }
-                })();
-            }
-
-            function renderEntry(index) {
-                if (index >= introSteps.length) {
-                    renderFinalPrompt(true);
-                    return;
-                }
-
-                const entry = introSteps[index];
-                const line = document.createElement('div');
-                line.className = 'line';
-                line.innerHTML = PROMPT_HTML;
-                const cmdSpan = document.createElement('span');
-                cmdSpan.className = 'cmd';
-                line.appendChild(cmdSpan);
-                bodyEl.appendChild(line);
-
-                typeLine(entry.cmd, cmdSpan, () => {
-                    const out = document.createElement('div');
-                    out.className = 'output';
-                    out.innerHTML = entry.output.join('\n');
-                    bodyEl.appendChild(out);
-                    setTimeout(() => renderEntry(index + 1), 260);
-                });
-            }
-
-            function renderFinalPrompt(shouldFocus) {
-                const line = document.createElement('div');
-                line.className = 'line';
-                line.innerHTML = PROMPT_HTML;
-
-                const typed = document.createElement('span');
-                typed.className = 'cmd';
-                const caret = document.createElement('span');
-                caret.className = 'caret';
-
-                line.appendChild(typed);
-                line.appendChild(caret);
-                bodyEl.appendChild(line);
-
-                currentTypedSpan = typed;
-                activeCaret = caret;
-
-                if (shouldFocus) {
-                    focusThisWindow();
-                }
-            }
-
-            function submitCommand(raw) {
-                if (activeCaret) activeCaret.remove();
-                const value = raw.trim();
-
-                if (value.toLowerCase() === 'clear') {
-                    bodyEl.innerHTML = '';
-                    renderFinalPrompt(false);
-                    return;
-                }
-
-                if (value.toLowerCase() === 'start') {
-                    const out = document.createElement('div');
-                    out.className = 'output';
-                    out.textContent = 'Iniciando nueva terminal...';
-                    bodyEl.appendChild(out);
-                    renderFinalPrompt(false);
-                    bodyEl.scrollTop = bodyEl.scrollHeight;
-                    createTerminalWindow();
-                    return;
-                }
-
-                if (value !== '') {
-                    const match = commands.find((en) => en.cmd.toLowerCase() === value.toLowerCase());
-                    const out = document.createElement('div');
-                    out.className = 'output';
-                    if (match) {
-                        out.innerHTML = match.output.join('\n');
-                    } else {
-                        out.textContent = 'bash: ' + value + ': comando no encontrado';
-                    }
-                    bodyEl.appendChild(out);
-                }
-
-                renderFinalPrompt(false);
-                bodyEl.scrollTop = bodyEl.scrollHeight;
-            }
-
-            const controller = {
-                handleInput(value) {
-                    if (currentTypedSpan) currentTypedSpan.textContent = value;
-                },
-                handleEnter(value) {
-                    submitCommand(value);
-                }
-            };
-
-            windows.push(controller);
-
             function maximizeWindow() {
+                if (animating || state === 'minimized' || state === 'closed' || state === 'maximized') return;
                 restoreBounds = {
                     left: el.style.left,
                     top: el.style.top,
@@ -732,32 +632,29 @@
                 el.style.top = '0px';
                 el.style.width = window.innerWidth + 'px';
                 el.style.height = (window.innerHeight - TASKBAR_HEIGHT) + 'px';
-                isMaximized = true;
+                state = 'maximized';
                 bringToFront();
             }
 
             function unmaximizeWindow() {
+                if (state !== 'maximized') return;
                 if (restoreBounds) {
                     el.style.left = restoreBounds.left;
                     el.style.top = restoreBounds.top;
                     el.style.width = restoreBounds.width;
                     el.style.height = restoreBounds.height;
                 }
-                isMaximized = false;
+                state = 'normal';
                 bringToFront();
             }
 
             greenDot.addEventListener('click', () => {
-                if (isAnimating) return;
-                if (isMaximized) {
-                    unmaximizeWindow();
-                } else {
-                    maximizeWindow();
-                }
+                if (animating || state === 'minimized' || state === 'closed') return;
+                if (state === 'maximized') unmaximizeWindow(); else maximizeWindow();
             });
 
             headerEl.addEventListener('pointerdown', (e) => {
-                if (e.target.closest('.dot') || isAnimating || isMaximized) return;
+                if (e.target.closest('.dot') || animating || state === 'maximized' || state === 'minimized') return;
                 bringToFront();
 
                 const rect = el.getBoundingClientRect();
@@ -789,97 +686,319 @@
                 headerEl.addEventListener('pointerup', onUp);
             });
 
-            resizeHandle.addEventListener('pointerdown', (e) => {
-                e.stopPropagation();
-                if (isAnimating || isMaximized) return;
-                bringToFront();
+            if (resizeHandle) {
+                resizeHandle.addEventListener('pointerdown', (e) => {
+                    e.stopPropagation();
+                    if (animating || state === 'maximized' || state === 'minimized') return;
+                    bringToFront();
 
-                const rect = el.getBoundingClientRect();
-                const startX = e.clientX;
-                const startY = e.clientY;
-                const startW = rect.width;
-                const startH = rect.height;
+                    const rect = el.getBoundingClientRect();
+                    const startX = e.clientX;
+                    const startY = e.clientY;
+                    const startW = rect.width;
+                    const startH = rect.height;
 
-                resizeHandle.setPointerCapture(e.pointerId);
+                    resizeHandle.setPointerCapture(e.pointerId);
 
-                function onMove(ev) {
-                    const maxW = window.innerWidth - rect.left;
-                    const maxH = (window.innerHeight - TASKBAR_HEIGHT) - rect.top;
-                    const newW = clamp(startW + (ev.clientX - startX), MIN_W, maxW);
-                    const newH = clamp(startH + (ev.clientY - startY), MIN_H, maxH);
-                    el.style.width = newW + 'px';
-                    el.style.height = newH + 'px';
-                }
+                    function onMove(ev) {
+                        const maxW = window.innerWidth - rect.left;
+                        const maxH = (window.innerHeight - TASKBAR_HEIGHT) - rect.top;
+                        const newW = clamp(startW + (ev.clientX - startX), MIN_W, maxW);
+                        const newH = clamp(startH + (ev.clientY - startY), MIN_H, maxH);
+                        el.style.width = newW + 'px';
+                        el.style.height = newH + 'px';
+                    }
 
-                function onUp() {
-                    resizeHandle.releasePointerCapture(e.pointerId);
-                    resizeHandle.removeEventListener('pointermove', onMove);
-                    resizeHandle.removeEventListener('pointerup', onUp);
-                }
+                    function onUp() {
+                        resizeHandle.releasePointerCapture(e.pointerId);
+                        resizeHandle.removeEventListener('pointermove', onMove);
+                        resizeHandle.removeEventListener('pointerup', onUp);
+                    }
 
-                resizeHandle.addEventListener('pointermove', onMove);
-                resizeHandle.addEventListener('pointerup', onUp);
-            });
-
-            redDot.addEventListener('click', () => {
-                if (isAnimating) return;
-                isAnimating = true;
-                el.classList.add('closing');
-            });
-
-            yellowDot.addEventListener('click', () => {
-                if (isAnimating) return;
-                isAnimating = true;
-                el.classList.add('minimizing');
-            });
+                    resizeHandle.addEventListener('pointermove', onMove);
+                    resizeHandle.addEventListener('pointerup', onUp);
+                });
+            }
 
             function addDockItem() {
                 dockItem = document.createElement('button');
                 dockItem.className = 'dock-item';
-                dockItem.innerHTML = '<span class="dock-dot"></span>' +
-                    instanceLabel.replace('guest@ciberdefensa: ~', 'ciberdefensa');
+                dockItem.innerHTML = '<span class="dock-dot"></span>' + (config.dockLabel || config.title);
                 dockItem.addEventListener('click', restoreWindow);
                 dockEl.appendChild(dockItem);
                 updateTaskbarVisibility();
             }
 
-            function restoreWindow() {
+            function removeDockItem() {
                 if (dockItem) {
                     dockItem.remove();
                     dockItem = null;
                     updateTaskbarVisibility();
                 }
+            }
+
+            function minimizeWindow() {
+                if (animating || state === 'minimized' || state === 'closed') return;
+                animating = true;
+                state = 'minimized';
+                if (WindowManager.activeId === id) WindowManager.setActive(null);
+                el.classList.add('minimizing');
+                if (backdropEl) backdropEl.style.display = 'none';
+            }
+
+            function restoreWindow() {
+                if (state !== 'minimized') return;
+                removeDockItem();
                 el.style.display = '';
-                isAnimating = true;
+                animating = true;
+                state = 'normal';
                 el.classList.add('restoring');
+                if (backdropEl) backdropEl.style.display = '';
                 focusThisWindow();
             }
 
+            function closeWindow() {
+                if (animating || state === 'closed') return;
+                animating = true;
+                state = 'closed';
+                el.classList.add('closing');
+                if (backdropEl) backdropEl.classList.add('closing');
+                if (openModal === api) openModal = null;
+            }
+
+            redDot.addEventListener('click', closeWindow);
+            yellowDot.addEventListener('click', minimizeWindow);
+
             el.addEventListener('animationend', (e) => {
                 if (e.animationName === 'windowClose') {
-                    if (activeWindow === controller) activeWindow = null;
-
-                    const idx = windows.indexOf(controller);
-                    if (idx !== -1) windows.splice(idx, 1);
-
+                    WindowManager.unregister(id);
                     el.remove();
-
-                    if (windows.length === 0) {
-                        createTerminalWindow();
-                    }
+                    if (config.onClose) config.onClose(api);
                 } else if (e.animationName === 'windowMinimize') {
                     el.classList.remove('minimizing');
                     el.style.display = 'none';
-                    isAnimating = false;
-                    if (activeWindow === controller) activeWindow = null;
+                    animating = false;
                     addDockItem();
                 } else if (e.animationName === 'windowRestore') {
                     el.classList.remove('restoring');
-                    isAnimating = false;
+                    animating = false;
+                } else if (e.animationName === 'windowOpen') {
+                    el.classList.remove('opening');
                 }
             });
 
-            renderEntry(0);
+            const api = {
+                id,
+                type: config.type,
+                el,
+                bodyEl,
+                bringToFront,
+                focus: focusThisWindow,
+                close: closeWindow,
+                minimize: minimizeWindow,
+                restore: restoreWindow,
+                maximize: maximizeWindow,
+                unmaximize: unmaximizeWindow,
+                getState: () => state
+            };
+
+            WindowManager.register(api);
+
+            if (config.buildBody) config.buildBody(bodyEl, api);
+
+            // Position last: for auto-height windows this must run after buildBody
+            // populates content, otherwise offsetHeight would still read the empty shell.
+            const sameTypeCount = config.cascade ? WindowManager.countByType(config.type) - 1 : 0;
+            const cascadeOffset = (sameTypeCount % 6) * 26;
+            const w = el.offsetWidth;
+            const h = el.offsetHeight;
+            const maxLeft = Math.max(window.innerWidth - w, 0);
+            const maxTop = Math.max(window.innerHeight - TASKBAR_HEIGHT - h, 0);
+            const baseLeft = (window.innerWidth - w) / 2;
+            const baseTop = (window.innerHeight - TASKBAR_HEIGHT - h) / 2;
+            el.style.left = clamp(baseLeft + cascadeOffset, 0, maxLeft) + 'px';
+            el.style.top = clamp(baseTop + cascadeOffset, 0, maxTop) + 'px';
+            bringToFront();
+
+            el.classList.add('opening');
+            if (backdropEl) backdropEl.classList.add('opening');
+            if (config.modal) openModal = api;
+
+            return api;
+        }
+
+        let terminalWindowCount = 0;
+
+        function createTerminalWindow() {
+            terminalWindowCount++;
+            const instanceLabel = terminalWindowCount > 1
+                ? 'guest@ciberdefensa: ~ (' + terminalWindowCount + ')'
+                : 'guest@ciberdefensa: ~';
+
+            const width = Math.min(DEFAULT_W, window.innerWidth - 32);
+            const height = Math.min(DEFAULT_H, window.innerHeight - TASKBAR_HEIGHT - 32);
+
+            let currentTypedSpan = null;
+            let activeCaret = null;
+            let winApi = null;
+
+            const controller = {
+                handleInput(value) {
+                    if (currentTypedSpan) currentTypedSpan.textContent = value;
+                },
+                handleEnter(value) {
+                    submitCommand(value);
+                }
+            };
+
+            function typeLine(text, target, done) {
+                let i = 0;
+                (function step() {
+                    if (i <= text.length) {
+                        target.textContent = text.slice(0, i);
+                        i++;
+                        setTimeout(step, 22 + Math.random() * 28);
+                    } else {
+                        done();
+                    }
+                })();
+            }
+
+            function renderEntry(bodyEl, index) {
+                if (index >= introSteps.length) {
+                    renderFinalPrompt(bodyEl, true);
+                    return;
+                }
+
+                const entry = introSteps[index];
+                const line = document.createElement('div');
+                line.className = 'line';
+                line.innerHTML = PROMPT_HTML;
+                const cmdSpan = document.createElement('span');
+                cmdSpan.className = 'cmd';
+                line.appendChild(cmdSpan);
+                bodyEl.appendChild(line);
+
+                typeLine(entry.cmd, cmdSpan, () => {
+                    const out = document.createElement('div');
+                    out.className = 'output';
+                    out.innerHTML = entry.output.join('\n');
+                    bodyEl.appendChild(out);
+                    setTimeout(() => renderEntry(bodyEl, index + 1), 260);
+                });
+            }
+
+            function renderFinalPrompt(bodyEl, shouldFocus) {
+                const line = document.createElement('div');
+                line.className = 'line';
+                line.innerHTML = PROMPT_HTML;
+
+                const typed = document.createElement('span');
+                typed.className = 'cmd';
+                const caret = document.createElement('span');
+                caret.className = 'caret';
+
+                line.appendChild(typed);
+                line.appendChild(caret);
+                bodyEl.appendChild(line);
+
+                currentTypedSpan = typed;
+                activeCaret = caret;
+
+                if (shouldFocus) {
+                    winApi.focus();
+                }
+            }
+
+            function submitCommand(raw) {
+                const bodyEl = winApi.bodyEl;
+                if (activeCaret) activeCaret.remove();
+                const value = raw.trim();
+
+                if (value.toLowerCase() === 'clear') {
+                    bodyEl.innerHTML = '';
+                    renderFinalPrompt(bodyEl, false);
+                    return;
+                }
+
+                if (value.toLowerCase() === 'start') {
+                    const out = document.createElement('div');
+                    out.className = 'output';
+                    out.textContent = 'Iniciando nueva terminal...';
+                    bodyEl.appendChild(out);
+                    renderFinalPrompt(bodyEl, false);
+                    bodyEl.scrollTop = bodyEl.scrollHeight;
+                    createTerminalWindow();
+                    return;
+                }
+
+                if (value !== '') {
+                    const match = commands.find((en) => en.cmd.toLowerCase() === value.toLowerCase());
+                    const out = document.createElement('div');
+                    out.className = 'output';
+                    if (match) {
+                        out.innerHTML = match.output.join('\n');
+                    } else {
+                        out.textContent = 'bash: ' + value + ': comando no encontrado';
+                    }
+                    bodyEl.appendChild(out);
+                }
+
+                renderFinalPrompt(bodyEl, false);
+                bodyEl.scrollTop = bodyEl.scrollHeight;
+            }
+
+            createManagedWindow({
+                type: 'terminal',
+                title: instanceLabel,
+                dockLabel: instanceLabel.replace('guest@ciberdefensa: ~', 'ciberdefensa'),
+                width,
+                height,
+                resizable: true,
+                cascade: true,
+                onFocus: () => {
+                    activeWindow = controller;
+                    hiddenInput.value = currentTypedSpan ? currentTypedSpan.textContent : '';
+                    hiddenInput.focus();
+                },
+                onClose: () => {
+                    if (activeWindow === controller) activeWindow = null;
+                    const idx = terminalControllers.indexOf(controller);
+                    if (idx !== -1) terminalControllers.splice(idx, 1);
+                    if (WindowManager.countByType('terminal') === 0) createTerminalWindow();
+                },
+                buildBody: (bodyEl, api) => {
+                    winApi = api;
+                    terminalControllers.push(controller);
+                    renderEntry(bodyEl, 0);
+                }
+            });
+        }
+
+        function createInstagramWindow() {
+            createManagedWindow({
+                type: 'instagram',
+                title: 'guest@ciberdefensa: ~/instagram',
+                dockLabel: '📸 Instagram',
+                width: Math.min(380, window.innerWidth - 32),
+                resizable: false,
+                cascade: false,
+                modal: true,
+                extraBodyClass: 'ig-body',
+                buildBody: (bodyEl, api) => {
+                    bodyEl.innerHTML =
+                        '<p class="ig-title">📸 Seguí a CiberDefensa Team</p>' +
+                        '<p>Noticias, memes e info de ciberdefensa.</p>' +
+                        '<div class="ig-links" role="group" aria-label="Enlaces de CiberDefensa">' +
+                            '<a class="ig-btn primary" href="https://instagram.com/ciberdefensa.team" target="_blank" rel="noopener">' +
+                                '<small style="opacity:0.85">Instagram</small>' +
+                            '</a>' +
+                            '<a class="ig-btn secondary" href="https://wa.me/link" target="_blank" rel="noopener">' +
+                                '<span>Grupo de WhatsApp</span>' +
+                            '</a>' +
+                        '</div>';
+                }
+            });
         }
 
         if (window.matchMedia('(pointer: fine)').matches) {
@@ -887,29 +1006,7 @@
         }
 
         createTerminalWindow();
-
-        (function () {
-            const overlay = document.getElementById('igOverlay');
-            const closeBtn = document.getElementById('igCloseBtn');
-            const closeDot = document.getElementById('igCloseDot');
-
-            function closePopup() {
-                if (!overlay || overlay.classList.contains('closing')) return;
-                overlay.classList.add('closing');
-                overlay.addEventListener('animationend', () => overlay.remove(), { once: true });
-            }
-
-            if (closeBtn) closeBtn.addEventListener('click', closePopup);
-            if (closeDot) closeDot.addEventListener('click', closePopup);
-            if (overlay) {
-                overlay.addEventListener('click', (e) => {
-                    if (e.target === overlay) closePopup();
-                });
-            }
-            document.addEventListener('keydown', (e) => {
-                if (e.key === 'Escape') closePopup();
-            });
-        })();
+        createInstagramWindow();
     </script>
 </body>
 </html>
