@@ -5,6 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CiberDefensa Team</title>
     <style>
+        /*
+         Sección de estilos (CSS)
+         - Variables de tema en :root (colores, tamaños globales)
+         - Reglas para la apariencia de ventanas tipo 'terminal', modal, y botones
+         - Comentarios aquí ayudan a identificar qué controla cada bloque
+        */
         :root {
             --bg: #0a0e14;
             --terminal-bg: #0d1117;
@@ -221,7 +227,7 @@
             background: var(--accent);
             vertical-align: text-bottom;
             margin-left: 2px;
-            animation: blink 1s steps(1) infinite;
+            animation: blink 0.4s steps(1) infinite;
         }
 
         .resize-handle {
@@ -366,6 +372,8 @@
             border-color: var(--accent-2);
             color: var(--accent-2);
         }
+
+        /* Fin de los estilos del modal y UI */
     </style>
 </head>
 <body>
@@ -374,6 +382,15 @@
     </div>
 
     <script>
+        /*
+         Archivo JS principal (ES): descripción general
+         - Área: control de ventanas (WindowManager, createManagedWindow)
+         - Terminales: createTerminalWindow, manejo de comandos simulados
+         - Modal Instagram: createInstagramWindow (abre un modal con enlaces)
+         - Variables importantes: TASKBAR_HEIGHT, MIN_W/MIN_H, PROMPT_HTML, HELP_TEXT
+         - Elementos DOM: `dockEl` (contenedor del dock), `hiddenInput` (input oculto)
+         Este bloque superior contiene comentarios inline para cada función/variable.
+        */
         document.addEventListener('contextmenu', (e) => e.preventDefault());
 
         document.addEventListener('keydown', (e) => {
@@ -398,25 +415,31 @@
 
         const HELP_TEXT = 'Comandos: cat about.md, cat instagram.md, cat banner.txt, start, clear, help';
 
-        const BANNER_WIDTH = 50;
+        // Ancho (en caracteres) usado para construir el banner de texto
+        const BANNER_WIDTH = 30;
 
+        /* centerText (ES): centra una cadena dentro de un ancho dado añadiendo
+           espacios a izquierda/derecha. Utilizado por las funciones del banner. */
         function centerText(text, width) {
             const pad = Math.max(width - text.length, 0);
             const left = Math.floor(pad / 2);
             return ' '.repeat(left) + text + ' '.repeat(pad - left);
         }
 
+        // bannerBorder (ES): crea la línea superior/inferior del banner usando '+' y '-'
         function bannerBorder(width) {
             return '+' + '-'.repeat(width + 2) + '+';
         }
 
+        // bannerLine (ES): formatea una línea del banner con '|' y texto centrado
         function bannerLine(text, width) {
             return '| ' + centerText(text, width) + ' |';
         }
 
+        // Contenido del banner que se mostrará en la terminal de introducción
         const BANNER_LINES = [
             bannerBorder(BANNER_WIDTH),
-            bannerLine('C I B E R D E F E N S A   T E A M', BANNER_WIDTH),
+            bannerLine('CIBERDEFENSA TEAM', BANNER_WIDTH),
             bannerBorder(BANNER_WIDTH),
             '',
             'Grupo de estudiantes de la FADENA 🛡️',
@@ -427,7 +450,10 @@
             HELP_TEXT
         ];
 
-        const commands = [
+          /* Lista de comandos simulados para la terminal. Cada objeto tiene:
+              - cmd: texto del comando que el usuario puede escribir
+              - output: array de líneas que se muestran como resultado */
+          const commands = [
             {
                 cmd: 'cat about.md',
                 output: [
@@ -451,6 +477,7 @@
 
         const introSteps = [commands.find((c) => c.cmd === 'cat banner.txt')];
 
+        // Elementos DOM: `dockEl` muestra los items minimizados; `taskbarEl` es la barra inferior
         const dockEl = document.getElementById('dock');
         const taskbarEl = document.querySelector('.taskbar');
 
@@ -481,10 +508,15 @@
             }
         });
 
+        // clamp: utilidad para limitar un valor entre min y max
         function clamp(v, min, max) {
             return Math.min(Math.max(v, min), max);
         }
 
+        /* clampWindowToViewport (ES): asegura que la ventana quede dentro
+           de los límites visibles del navegador tras redimensionados.
+           - Ajusta tamaño y posición max/min en función de la ventana.
+        */
         function clampWindowToViewport(el) {
             const maxW = window.innerWidth;
             const maxH = window.innerHeight - TASKBAR_HEIGHT;
@@ -512,6 +544,14 @@
             if (e.key === 'Escape' && openModal) openModal.close();
         });
 
+        /*
+         WindowManager (ES): gestor central de ventanas abiertas.
+         - `registry`: mapa de ventanas (id -> api)
+         - `zIndexCounter`: contador para apilar ventanas por encima
+         - `activeId`: id de la ventana con foco
+         - `nextId`: id siguiente a asignar
+         Funciones: register/unregister, bringToFront, setActive, countByType
+        */
         /**
          * WindowManager: the single source of truth for every open window,
          * independent of its type (terminal, instagram, ...). It owns identity
@@ -545,14 +585,22 @@
             }
         };
 
-        /**
-         * Builds one OS-style window (chrome, drag, resize, minimize/maximize/close
-         * state machine, taskbar integration) and hands the body element to
-         * config.buildBody so callers only need to supply content per window type.
-         *
-         * config: { type, title, dockLabel, width, height, resizable, cascade,
-         *           extraBodyClass, buildBody(bodyEl, api), onFocus(api), onClose(api) }
-         */
+                /*
+                 createManagedWindow (ES): fábrica de ventanas reutilizable.
+                 - Recibe `config` con metadatos y una función `buildBody` que debe
+                     rellenar `bodyEl` con el contenido específico de la ventana.
+                 - Gestiona: chrome (header con puntos), arrastre, resize, minimizar,
+                     restaurar, cerrar y la integración con el dock/taskbar.
+                 - Devuelve una API (`api`) para controlar la ventana desde fuera.
+                */
+                /**
+                 * Builds one OS-style window (chrome, drag, resize, minimize/maximize/close
+                 * state machine, taskbar integration) and hands the body element to
+                 * config.buildBody so callers only need to supply content per window type.
+                 *
+                 * config: { type, title, dockLabel, width, height, resizable, cascade,
+                 *           extraBodyClass, buildBody(bodyEl, api), onFocus(api), onClose(api) }
+                 */
         function createManagedWindow(config) {
             const id = WindowManager.nextId++;
 
@@ -829,7 +877,14 @@
 
         let terminalWindowCount = 0;
 
-        function createTerminalWindow() {
+                /*
+                 createTerminalWindow (ES): crea una ventana tipo "terminal" interactiva.
+                 - Lleva la animación de tipeo inicial (introSteps) y maneja la entrada
+                     del usuario a través del `hiddenInput` global.
+                 - Registra un controlador con `handleInput` y `handleEnter` para que
+                     WindowManager y el input oculto puedan interactuar con la terminal.
+                */
+                function createTerminalWindow() {
             terminalWindowCount++;
             const instanceLabel = terminalWindowCount > 1
                 ? 'guest@ciberdefensa: ~ (' + terminalWindowCount + ')'
@@ -975,7 +1030,13 @@
             });
         }
 
-        function createInstagramWindow() {
+                /*
+                 createInstagramWindow (ES): crea un modal/ventana informativa tipo "Instagram".
+                 - Usa createManagedWindow con `modal: true` para bloquear interacción
+                     con el resto de la UI hasta que se cierre.
+                 - buildBody inserta botones con enlaces y el contenido promocional.
+                */
+                function createInstagramWindow() {
             createManagedWindow({
                 type: 'instagram',
                 title: 'guest@ciberdefensa: ~/instagram',
